@@ -318,28 +318,46 @@ async function main() {
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
   const extensionPath = path.join(process.cwd(), "buster-extension");
+  // Proxy configuration
+  const proxyServer = "118.193.58.115:2333";
+  const proxyUsername = "u7b7995b956e805c6-zone-custom-region-se-st-skanecounty-city-malmö";
+  const proxyPassword = "u7b7995b956e805c6";
+  
   const browser = await puppeteerExtra.launch({
     headless: "new",
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      "--proxy-server=118.193.58.115:2333",
-      // `--enable-gpu`,
-      // `--proxy-server=http://127.0.0.1:8080`
+      `--proxy-server=${proxyServer}`,
+      "--disable-web-security",
+      "--disable-features=VizDisplayCompositor",
     ],
   });
   const page = await browser.newPage();
 
-  page.authenticate({
-    username:
-      "u7b7995b956e805c6-zone-custom-region-se-st-skanecounty-city-malmö",
-    password: "u7b7995b956e805c6",
+  // Authenticate with proxy - note the await
+  await page.authenticate({
+    username: proxyUsername,
+    password: proxyPassword,
   });
+  
+  console.log(`Using proxy: ${proxyServer} with username: ${proxyUsername}`);
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
   );
+  
+  // Test proxy by checking IP
+  try {
+    console.log("Testing proxy connection...");
+    await page.goto("https://httpbin.org/ip", { waitUntil: "networkidle2", timeout: 10000 });
+    const ipInfo = await page.evaluate(() => document.body.textContent);
+    console.log("Current IP info:", ipInfo);
+  } catch (ipError) {
+    console.log("Could not verify IP:", ipError.message);
+  }
+  
   let captchaInterval;
   try {
     await page.waitForNetworkIdle({ timeout: 60000 });

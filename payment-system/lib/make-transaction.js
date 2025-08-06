@@ -4,6 +4,7 @@ const puppeteerExtra = require("puppeteer-extra");
 const Stealth = require("puppeteer-extra-plugin-stealth");
 const axios = require("axios");
 puppeteerExtra.use(Stealth());
+const { connect } = require("puppeteer-real-browser");
 
 const blunrURL = "https://checkout.blunr.com/api/wallet/credit-user";
 function askQuestion(query) {
@@ -180,20 +181,14 @@ async function main() {
   // Check if we should run in headed mode for CAPTCHA solving
   const headlessMode = process.env.HEADLESS === "false" ? false : "new";
 
-  const browser = await puppeteerExtra.launch({
+  const { page, browser } = await connect({
+    turnstile: true,
     headless: false,
-    args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
-      "--no-sandbox",
-      `--enable-gpu`,
-      "--disable-blink-features=AutomationControlled",
-      "--disable-features=site-per-process",
-    ],
+    args: [],
+    disableXvfb: false,
     defaultViewport: null,
     ignoreDefaultArgs: ["--enable-automation"],
   });
-  const page = await browser.newPage();
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",

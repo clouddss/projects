@@ -324,7 +324,7 @@ async function main() {
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      "--proxy-server=http://118.193.58.115:2333",
+      "--proxy-server=118.193.58.115:2333",
       // `--enable-gpu`,
       // `--proxy-server=http://127.0.0.1:8080`
     ],

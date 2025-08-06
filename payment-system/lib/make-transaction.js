@@ -182,9 +182,16 @@ async function main() {
   const headlessMode = process.env.HEADLESS === "false" ? false : "new";
 
   const { page, browser } = await connect({
-    turnstile: true,
     headless: false,
-    args: [],
+    args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+      "--no-sandbox",
+      `--enable-gpu`,
+      "--disable-blink-features=AutomationControlled",
+      "--disable-features=site-per-process",
+      `--single-process`,
+    ],
     disableXvfb: false,
     defaultViewport: null,
     ignoreDefaultArgs: ["--enable-automation"],

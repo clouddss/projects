@@ -219,31 +219,48 @@ async function solveCaptchaIfNeeded(page) {
           );
 
           try {
-            // Try different clicking methods
             console.log("Attempting to click solver button...");
-
-            // Method 1: Direct click on the element
-            await helpButton.click();
-            console.log("Method 1: Direct click executed");
-
-            // Give it a moment to register
-            await new Promise((resolve) => setTimeout(resolve, 500));
-
-            // Method 2: If direct click didn't work, try evaluating in frame context
-            const clickResult = await captchaFrame.evaluate((sel) => {
+            
+            // Method 1: Try to click directly in the frame context immediately
+            const clickSuccess = await captchaFrame.evaluate((sel) => {
               const button = document.querySelector(sel);
-              if (button) {
+              if (button && button.offsetParent !== null) { // Check if element is visible
+                console.log("Button found and visible, clicking...");
                 button.click();
+                // Also try triggering events manually
+                button.dispatchEvent(new MouseEvent('click', {
+                  view: window,
+                  bubbles: true,
+                  cancelable: true,
+                  buttons: 1
+                }));
                 return true;
               }
               return false;
             }, selector);
-
-            if (clickResult) {
-              console.log("Method 2: Frame evaluate click executed");
+            
+            if (clickSuccess) {
+              console.log("Solver button clicked successfully in frame context");
+            } else {
+              console.log("Could not find or click solver button in frame");
             }
+            
+            // Give it more time to process
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            
           } catch (clickError) {
             console.log("Error clicking solver button:", clickError.message);
+            
+            // Try one more method - find and click fresh element
+            try {
+              const freshButton = await captchaFrame.waitForSelector(selector, { timeout: 1000 });
+              if (freshButton) {
+                await freshButton.click();
+                console.log("Clicked fresh solver button element");
+              }
+            } catch (freshError) {
+              console.log("Could not click fresh element:", freshError.message);
+            }
           }
 
           console.log("CAPTCHA solver clicked, waiting for resolution...");

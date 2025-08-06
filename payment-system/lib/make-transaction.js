@@ -90,13 +90,13 @@ async function solveCaptchaIfNeeded(page) {
       'iframe[src*="recaptcha.net"]'
     ];
     
-    let captchaFrame = null;
+    let captchaDetected = false;
     for (const selector of captchaSelectors) {
       try {
         const iframe = await page.$(selector);
         if (iframe) {
           console.log(`Found CAPTCHA iframe with selector: ${selector}`);
-          captchaFrame = iframe;
+          captchaDetected = true;
           break;
         }
       } catch (e) {
@@ -104,73 +104,48 @@ async function solveCaptchaIfNeeded(page) {
       }
     }
     
-    if (!captchaFrame) {
+    if (!captchaDetected) {
       console.log("No CAPTCHA iframe found");
       return false;
     }
     
-    // Try to access the frame content
-    const frame = await captchaFrame.contentFrame();
-    if (!frame) {
-      console.log("Could not access CAPTCHA iframe content");
+    console.log("CAPTCHA detected! NopeCHA extension should handle it automatically.");
+    
+    // Wait for NopeCHA to solve the CAPTCHA automatically
+    console.log("Waiting for NopeCHA to solve the CAPTCHA...");
+    
+    // Wait for the CAPTCHA to be solved (check for success token or iframe disappearance)
+    try {
+      await page.waitForFunction(
+        () => {
+          // Check if reCAPTCHA response textarea has a value (indicates solved)
+          const responseTextarea = document.querySelector('textarea[name="g-recaptcha-response"]');
+          if (responseTextarea && responseTextarea.value) {
+            return true;
+          }
+          
+          // Check if CAPTCHA iframe is gone
+          const captchaFrames = Array.from(document.querySelectorAll('iframe')).filter(iframe => 
+            iframe.src.includes('recaptcha') || 
+            iframe.title?.includes('recaptcha') ||
+            iframe.title?.includes('reCAPTCHA')
+          );
+          
+          return captchaFrames.length === 0;
+        },
+        { timeout: 30000 } // Wait up to 30 seconds for NopeCHA to solve
+      );
+      
+      console.log("CAPTCHA solved by NopeCHA!");
+      return true;
+    } catch (error) {
+      console.log("Timeout waiting for NopeCHA to solve CAPTCHA.");
+      console.log("If NopeCHA doesn't work automatically, you may need to:");
+      console.log("1. Check if NopeCHA extension is properly configured");
+      console.log("2. Ensure you have credits in your NopeCHA account");
+      console.log("3. Run in headed mode (HEADLESS=false) to solve manually");
       return false;
     }
-    
-    // Look for various button selectors that Buster might use
-    const buttonSelectors = [
-      "div.button-holder.help-button-holder",
-      "button.help-button",
-      "#recaptcha-help-button",
-      ".rc-button-help",
-      "div[role='button']"
-    ];
-    
-    let solverButton = null;
-    for (const selector of buttonSelectors) {
-      try {
-        solverButton = await frame.$(selector);
-        if (solverButton) {
-          console.log(`Found solver button with selector: ${selector}`);
-          
-          // Check if the element is clickable
-          const isClickable = await frame.evaluate((sel) => {
-            const el = document.querySelector(sel);
-            if (!el) return false;
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
-          }, selector);
-          
-          if (isClickable) {
-            console.log("CAPTCHA found, attempting to solve...");
-            await solverButton.click();
-            await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for solver
-            console.log("CAPTCHA solver clicked.");
-            return true;
-          } else {
-            console.log(`Button found but not clickable: ${selector}`);
-          }
-        }
-      } catch (e) {
-        console.log(`Error checking button selector ${selector}:`, e.message);
-      }
-    }
-    
-    // If no solver button found, check if Buster extension is properly loaded
-    console.log("CAPTCHA detected but solver button not found. Buster extension may not be loaded properly.");
-    
-    // Try alternative approach - check for audio button
-    try {
-      const audioButton = await frame.$('#recaptcha-audio-button');
-      if (audioButton) {
-        console.log("Found audio challenge button as fallback");
-        await audioButton.click();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    } catch (e) {
-      console.log("Audio button fallback failed:", e.message);
-    }
-    
-    return false;
   } catch (error) {
     console.log("CAPTCHA check failed:", error.message);
     return false;
@@ -193,15 +168,23 @@ async function main() {
   // Parse Blunr parameters
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
-  const extensionPath = path.join(process.cwd(), "buster-extension");
+  const extensionPath = path.join(process.cwd(), "chromium");
+  
+  // Check if we should run in headed mode for CAPTCHA solving
+  const headlessMode = process.env.HEADLESS === 'false' ? false : 'new';
+  
   const browser = await puppeteerExtra.launch({
-    headless: "new",
+    headless: headlessMode,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
       `--enable-gpu`,
+      "--disable-blink-features=AutomationControlled",
+      "--disable-features=site-per-process"
     ],
+    defaultViewport: null,
+    ignoreDefaultArgs: ["--enable-automation"]
   });
   const page = await browser.newPage();
 
@@ -464,6 +447,55 @@ async function main() {
         JSON.stringify(availableButtons, null, 2),
       );
       throw new Error('Could not find "Complete" button after email');
+    }
+
+    // Check if CAPTCHA is blocking the password field
+    console.log("Checking if CAPTCHA needs to be solved before password field...");
+    const captchaPresent = await page.evaluate(() => {
+      const iframes = Array.from(document.querySelectorAll('iframe'));
+      return iframes.some(iframe => 
+        iframe.src.includes('recaptcha') || 
+        iframe.title?.includes('recaptcha') ||
+        iframe.title?.includes('reCAPTCHA')
+      );
+    });
+
+    if (captchaPresent) {
+      console.log("CAPTCHA detected! Waiting for manual solve or Buster extension...");
+      
+      // Give user time to solve CAPTCHA manually or wait for Buster
+      console.log("Please solve the CAPTCHA manually if Buster extension doesn't work.");
+      console.log("Waiting up to 60 seconds for CAPTCHA to be solved...");
+      
+      // Wait for CAPTCHA to disappear or password field to appear
+      try {
+        await page.waitForFunction(
+          () => {
+            // Check if password field is now available
+            const passwordField = document.querySelector('#password-input') || 
+                                document.querySelector('input[name="password"]') || 
+                                document.querySelector('input[type="password"]');
+            
+            // Check if CAPTCHA is gone
+            const captchaFrames = Array.from(document.querySelectorAll('iframe')).filter(iframe => 
+              iframe.src.includes('recaptcha') || 
+              iframe.title?.includes('recaptcha') ||
+              iframe.title?.includes('reCAPTCHA')
+            );
+            
+            // Return true if password field exists or CAPTCHA is gone
+            return passwordField || captchaFrames.length === 0;
+          },
+          { timeout: 60000 } // Wait up to 60 seconds
+        );
+        
+        console.log("CAPTCHA solved or password field appeared!");
+        
+        // Small delay to ensure page has stabilized
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.log("Timeout waiting for CAPTCHA to be solved. Continuing anyway...");
+      }
     }
 
     console.log("Entering password...");

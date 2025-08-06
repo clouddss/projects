@@ -83,7 +83,41 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
 
 async function solveCaptchaWith2Captcha(page, captchaSolver) {
   try {
+    // Check if we recently solved a CAPTCHA to avoid spam
+    const recentlySolved = await page.evaluate(() => {
+      const lastSolvedTime = window.lastCaptchaSolvedTime || 0;
+      const now = Date.now();
+      const timeSinceLastSolve = now - lastSolvedTime;
+      
+      if (timeSinceLastSolve < 10000) { // 10 second cooldown
+        console.log(`🕒 CAPTCHA cooldown active: ${Math.round((10000 - timeSinceLastSolve) / 1000)}s remaining`);
+        return true;
+      }
+      return false;
+    });
+    
+    if (recentlySolved) {
+      return false; // Skip solving if we solved one recently
+    }
+    
     console.log("🔍 Checking for CAPTCHAs...");
+    
+    // Check if there are pending CAPTCHA solutions
+    const hasPendingSolutions = await page.evaluate(() => {
+      const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+      for (const textarea of textareas) {
+        if (textarea.value && textarea.value.length > 0) {
+          console.log('🔄 Found existing CAPTCHA solution, waiting for page to process...');
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    if (hasPendingSolutions) {
+      console.log("⏳ CAPTCHA solution already present, waiting for page to process...");
+      return false;
+    }
 
     // Check for reCAPTCHA v2
     const recaptchaV2 = await page.evaluate(() => {
@@ -289,24 +323,63 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
     console.log("💉 Injecting CAPTCHA solution...");
     await page.evaluate((solution, captchaType) => {
       if (captchaType === 'recaptcha_v2' || captchaType === 'recaptcha_v3') {
-        const textarea = document.querySelector('textarea[name="g-recaptcha-response"]');
-        if (textarea) {
+        // Find all reCAPTCHA response textareas
+        const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+        textareas.forEach(textarea => {
           textarea.style.display = 'block';
           textarea.value = solution;
-          textarea.dispatchEvent(new Event('change'));
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        
+        // Trigger reCAPTCHA callback if exists
+        if (window.grecaptcha) {
+          // Try to execute callbacks
+          if (window.grecaptcha.execute) {
+            try {
+              window.grecaptcha.execute();
+            } catch (e) {
+              console.log('grecaptcha.execute failed:', e);
+            }
+          }
+          
+          // Trigger any registered callbacks
+          if (window.recaptchaCallback && typeof window.recaptchaCallback === 'function') {
+            window.recaptchaCallback(solution);
+          }
         }
+        
+        // Mark the CAPTCHA as solved for tracking
+        window.captchaSolved = true;
+        window.lastCaptchaSolvedTime = Date.now();
+        
       } else if (captchaType === 'hcaptcha') {
-        const textarea = document.querySelector('textarea[name="h-captcha-response"]');
-        if (textarea) {
+        const textareas = document.querySelectorAll('textarea[name="h-captcha-response"]');
+        textareas.forEach(textarea => {
           textarea.style.display = 'block';
           textarea.value = solution;
-          textarea.dispatchEvent(new Event('change'));
-        }
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        window.captchaSolved = true;
+        window.lastCaptchaSolvedTime = Date.now();
       }
     }, solution, captchaToSolve.type);
 
     console.log("✅ CAPTCHA solution injected successfully!");
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Wait longer for the solution to be processed and check if it was accepted
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Check if CAPTCHA was accepted (page should progress or CAPTCHA should disappear)
+    const captchaStillVisible = await page.evaluate(() => {
+      const iframes = Array.from(document.querySelectorAll('iframe[src*="recaptcha"]'));
+      return iframes.length > 0 && !window.captchaSolved;
+    });
+    
+    if (!captchaStillVisible) {
+      console.log("🚀 CAPTCHA appears to have been accepted, page should progress");
+    }
     
     return true;
   } catch (error) {

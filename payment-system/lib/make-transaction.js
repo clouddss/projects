@@ -86,7 +86,13 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
     const recentlySolved = await page.evaluate(() => {
       const lastSolvedTime = window.lastCaptchaSolvedTime || 0;
       const now = Date.now();
-      return now - lastSolvedTime < 10000; // 10 second cooldown
+      const timeSinceLastSolve = now - lastSolvedTime;
+      
+      if (timeSinceLastSolve < 10000) { // 10 second cooldown
+        console.log(`🕒 CAPTCHA cooldown active: ${Math.round((10000 - timeSinceLastSolve) / 1000)}s remaining`);
+        return true;
+      }
+      return false;
     });
     
     if (recentlySolved) {
@@ -94,6 +100,23 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
     }
     
     console.log("🔍 Checking for CAPTCHAs...");
+    
+    // Check if there are pending CAPTCHA solutions
+    const hasPendingSolutions = await page.evaluate(() => {
+      const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+      for (const textarea of textareas) {
+        if (textarea.value && textarea.value.length > 0) {
+          console.log('🔄 Found existing CAPTCHA solution, waiting for page to process...');
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    if (hasPendingSolutions) {
+      console.log("⏳ CAPTCHA solution already present, waiting for page to process...");
+      return false;
+    }
 
     // Check for reCAPTCHA v2
     const recaptchaV2 = await page.evaluate(() => {
@@ -453,7 +476,20 @@ async function main() {
     });
     console.log("Initial page loaded.");
 
-    captchaInterval = setInterval(() => solveCaptchaWith2Captcha(page, captchaSolver), 5000);
+    // Create a smart CAPTCHA interval that can be paused
+    let captchaProcessing = false;
+    captchaInterval = setInterval(async () => {
+      if (!captchaProcessing) {
+        captchaProcessing = true;
+        try {
+          await solveCaptchaWith2Captcha(page, captchaSolver);
+        } catch (error) {
+          console.error("Error in CAPTCHA interval:", error.message);
+        } finally {
+          captchaProcessing = false;
+        }
+      }
+    }, 5000);
 
     console.log(`Entering ${amount}...`);
 

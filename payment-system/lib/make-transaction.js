@@ -85,23 +85,23 @@ async function solveCaptchaIfNeeded(page) {
       'iframe[title="recaptcha challenge expires in two minutes"]',
       { visible: true, timeout: 3000 },
     );
-    
+
     if (!iframe) {
       console.log("No CAPTCHA iframe found");
       return;
     }
-    
+
     const frame = await iframe.contentFrame();
     if (!frame) {
       console.log("Could not access CAPTCHA iframe content");
       return;
     }
-    
+
     const helpButton = await frame.waitForSelector(
       "div.button-holder.help-button-holder",
       { timeout: 1000 },
     );
-    
+
     if (helpButton) {
       console.log("CAPTCHA found, attempting to solve...");
       await helpButton.click();
@@ -133,15 +133,12 @@ async function main() {
 
   const extensionPath = path.join(process.cwd(), "buster-extension");
   const browser = await puppeteerExtra.launch({
-    headless: false,
+    headless: "new",
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--start-fullscreen",
-      "--window-size=1280,800",
+      `--enable-gpu`,
     ],
   });
   const page = await browser.newPage();
@@ -158,14 +155,14 @@ async function main() {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
-    
+
     // Log the current URL in case of redirect
     const currentUrl = page.url();
     console.log("Current URL after navigation:", currentUrl);
-    
+
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "initial-load.png"),
-      fullPage: true
+      fullPage: true,
     });
     console.log("Initial page loaded.");
 
@@ -175,26 +172,30 @@ async function main() {
 
     try {
       // Wait for page to fully load
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Give the page time to load
-      
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
+
       // Additional wait for dynamic content
-      await page.waitForFunction(() => document.readyState === 'complete', { timeout: 10000 }).catch(() => {
-        console.log("Document ready timeout, continuing anyway...");
-      });
+      await page
+        .waitForFunction(() => document.readyState === "complete", {
+          timeout: 10000,
+        })
+        .catch(() => {
+          console.log("Document ready timeout, continuing anyway...");
+        });
 
       // Take a debug screenshot
       await page.screenshot({
         path: path.join(__dirname, "screenshots", "debug-before-amount.png"),
-        fullPage: true
+        fullPage: true,
       });
 
       // Try multiple selectors
       const selectors = [
-        '.sw-payment-amount-input',
-        'input.sw-payment-amount-input',
+        ".sw-payment-amount-input",
+        "input.sw-payment-amount-input",
         'input[placeholder="0.00"]',
         'input[type="text"][inputmode="decimal"]',
-        '.sw-payment-input-group__amount-input'
+        ".sw-payment-input-group__amount-input",
       ];
 
       let amountInput = null;
@@ -218,57 +219,62 @@ async function main() {
       // If still not found, try with evaluate
       if (!amountInput) {
         console.log("Trying with page.evaluate...");
-        
+
         // First, let's see what inputs are on the page
         const inputInfo = await page.evaluate(() => {
-          const inputs = Array.from(document.querySelectorAll('input'));
+          const inputs = Array.from(document.querySelectorAll("input"));
           return {
             count: inputs.length,
-            inputs: inputs.map(input => ({
+            inputs: inputs.map((input) => ({
               type: input.type,
               placeholder: input.placeholder,
               value: input.value,
               className: input.className,
               id: input.id,
-              name: input.name
-            }))
+              name: input.name,
+            })),
           };
         });
-        
-        console.log("Found inputs on page:", JSON.stringify(inputInfo, null, 2));
-        
+
+        console.log(
+          "Found inputs on page:",
+          JSON.stringify(inputInfo, null, 2),
+        );
+
         // Try to find the input
         const foundInput = await page.evaluate(() => {
-          const inputs = Array.from(document.querySelectorAll('input'));
-          const targetInput = inputs.find(input => 
-            input.placeholder === "0.00" || 
-            input.classList.contains('sw-payment-amount-input') ||
-            input.value === "100" ||
-            input.type === "text"
+          const inputs = Array.from(document.querySelectorAll("input"));
+          const targetInput = inputs.find(
+            (input) =>
+              input.placeholder === "0.00" ||
+              input.classList.contains("sw-payment-amount-input") ||
+              input.value === "100" ||
+              input.type === "text",
           );
           return targetInput ? true : false;
         });
-        
+
         if (foundInput) {
           // Use page.evaluate to interact with it directly
           await page.evaluate((amountValue) => {
-            const inputs = Array.from(document.querySelectorAll('input'));
-            const targetInput = inputs.find(input => 
-              input.placeholder === "0.00" || 
-              input.classList.contains('sw-payment-amount-input') ||
-              input.value === "100" ||
-              input.type === "text"
+            const inputs = Array.from(document.querySelectorAll("input"));
+            const targetInput = inputs.find(
+              (input) =>
+                input.placeholder === "0.00" ||
+                input.classList.contains("sw-payment-amount-input") ||
+                input.value === "100" ||
+                input.type === "text",
             );
-            
+
             if (targetInput) {
               targetInput.focus();
-              targetInput.value = '';
+              targetInput.value = "";
               targetInput.value = amountValue;
-              targetInput.dispatchEvent(new Event('input', { bubbles: true }));
-              targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+              targetInput.dispatchEvent(new Event("input", { bubbles: true }));
+              targetInput.dispatchEvent(new Event("change", { bubbles: true }));
             }
           }, amount.toString());
-          
+
           console.log("Amount entered successfully using page.evaluate.");
         } else {
           // Check if we're on the right page
@@ -276,22 +282,26 @@ async function main() {
           const currentUrl = page.url();
           console.log("Page title:", pageTitle);
           console.log("Current URL:", currentUrl);
-          
+
           // Log visible text on the page
           const visibleText = await page.evaluate(() => {
             return document.body.innerText.substring(0, 500);
           });
           console.log("Visible text on page:", visibleText);
-          
-          throw new Error("Could not find amount input field - page might not have loaded correctly");
+
+          throw new Error(
+            "Could not find amount input field - page might not have loaded correctly",
+          );
         }
       } else if (amountInput) {
         // Original method if we found it with selectors
-        const elementExists = await amountInput.evaluate(el => el !== null).catch(() => false);
-        
+        const elementExists = await amountInput
+          .evaluate((el) => el !== null)
+          .catch(() => false);
+
         if (elementExists) {
           await amountInput.click({ clickCount: 3 });
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
           await page.keyboard.type(amount.toString(), { delay: 100 });
           console.log("Amount entered successfully.");
         } else {
@@ -319,15 +329,15 @@ async function main() {
     console.log("First 'Buy' button clicked. Proceeding to login.");
 
     console.log("Entering email...");
-    
+
     // Try multiple email selectors
     const emailSelectors = [
       "#email-input",
       'input[name="email"]',
       'input[type="email"]',
-      '.sw-input__input[type="email"]'
+      '.sw-input__input[type="email"]',
     ];
-    
+
     let emailInput = null;
     for (const selector of emailSelectors) {
       try {
@@ -342,15 +352,15 @@ async function main() {
         console.log(`Email selector ${selector} failed:`, e.message);
       }
     }
-    
+
     if (!emailInput) {
       await page.screenshot({
         path: path.join(__dirname, "screenshots", "email-input-debug.png"),
-        fullPage: true
+        fullPage: true,
       });
       throw new Error("Could not find email input field");
     }
-    
+
     await emailInput.click();
     await new Promise((resolve) => setTimeout(resolve, 500));
     await emailInput.type(gmail);
@@ -358,13 +368,13 @@ async function main() {
     console.log("Waiting 1 second...");
     await new Promise((resolve) => setTimeout(resolve, 1000));
     console.log("Clicking 'Complete' after email...");
-    
+
     // Take screenshot before clicking complete
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "before-email-complete.png"),
-      fullPage: true
+      fullPage: true,
     });
-    
+
     const completeButtonHandle = await page.evaluateHandle(() => {
       const buttons = Array.from(
         document.querySelectorAll('button[data-testid="submit"]'),
@@ -374,36 +384,39 @@ async function main() {
     if (completeButtonHandle.asElement()) {
       await completeButtonHandle.asElement().click();
       console.log("Email complete button clicked successfully");
-      
+
       // Wait a bit after clicking
       await new Promise((resolve) => setTimeout(resolve, 2000));
     } else {
       // Log available buttons for debugging
       const availableButtons = await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        return buttons.map(btn => ({
+        const buttons = Array.from(document.querySelectorAll("button"));
+        return buttons.map((btn) => ({
           text: btn.textContent?.trim(),
-          testId: btn.getAttribute('data-testid'),
-          disabled: btn.disabled
+          testId: btn.getAttribute("data-testid"),
+          disabled: btn.disabled,
         }));
       });
-      console.log("Available buttons:", JSON.stringify(availableButtons, null, 2));
+      console.log(
+        "Available buttons:",
+        JSON.stringify(availableButtons, null, 2),
+      );
       throw new Error('Could not find "Complete" button after email');
     }
 
     console.log("Entering password...");
-    
+
     // Try multiple selectors and longer timeout
     const passwordSelectors = [
       "#password-input",
       'input[name="password"]',
       'input[type="password"]',
-      '.sw-input__input[type="password"]'
+      '.sw-input__input[type="password"]',
     ];
-    
+
     let passwordInput = null;
     let foundPasswordSelector = null;
-    
+
     for (const selector of passwordSelectors) {
       try {
         console.log(`Trying password selector: ${selector}`);
@@ -418,42 +431,49 @@ async function main() {
         console.log(`Password selector ${selector} failed:`, e.message);
       }
     }
-    
+
     if (!passwordInput) {
       // Take debug screenshot
       await page.screenshot({
         path: path.join(__dirname, "screenshots", "password-input-debug.png"),
-        fullPage: true
+        fullPage: true,
       });
-      
+
       // Log all password-type inputs on the page
       const passwordInputs = await page.evaluate(() => {
-        const inputs = Array.from(document.querySelectorAll('input[type="password"], input[name="password"]'));
-        return inputs.map(input => ({
+        const inputs = Array.from(
+          document.querySelectorAll(
+            'input[type="password"], input[name="password"]',
+          ),
+        );
+        return inputs.map((input) => ({
           id: input.id,
           name: input.name,
           className: input.className,
           placeholder: input.placeholder,
-          visible: input.offsetParent !== null
+          visible: input.offsetParent !== null,
         }));
       });
-      console.log("Available password inputs:", JSON.stringify(passwordInputs, null, 2));
-      
+      console.log(
+        "Available password inputs:",
+        JSON.stringify(passwordInputs, null, 2),
+      );
+
       throw new Error("Could not find password input field");
     }
-    
+
     await passwordInput.click();
     await new Promise((resolve) => setTimeout(resolve, 500));
     await passwordInput.type(password);
 
     console.log("Clicking 'Complete' after password to log in...");
-    
+
     // Take screenshot before login
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "before-login.png"),
-      fullPage: true
+      fullPage: true,
     });
-    
+
     const loginButtonHandle = await page.evaluateHandle(() => {
       const buttons = Array.from(
         document.querySelectorAll('button[data-testid="submit"]'),
@@ -463,20 +483,23 @@ async function main() {
     if (loginButtonHandle.asElement()) {
       await loginButtonHandle.asElement().click();
       console.log("Login button clicked successfully");
-      
+
       // Wait for login to process
       await new Promise((resolve) => setTimeout(resolve, 3000));
     } else {
       // Log available buttons for debugging
       const availableButtons = await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        return buttons.map(btn => ({
+        const buttons = Array.from(document.querySelectorAll("button"));
+        return buttons.map((btn) => ({
           text: btn.textContent?.trim(),
-          testId: btn.getAttribute('data-testid'),
-          disabled: btn.disabled
+          testId: btn.getAttribute("data-testid"),
+          disabled: btn.disabled,
         }));
       });
-      console.log("Available login buttons:", JSON.stringify(availableButtons, null, 2));
+      console.log(
+        "Available login buttons:",
+        JSON.stringify(availableButtons, null, 2),
+      );
       throw new Error('Could not find "Complete" login button');
     }
 

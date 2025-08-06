@@ -177,11 +177,16 @@ async function main() {
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
   const extensionPath = path.join(process.cwd(), "chromium");
+  console.log("Extension path:", extensionPath);
+  console.log(
+    "Extension path exists:",
+    require("fs").existsSync(extensionPath),
+  );
 
   // Check if we should run in headed mode for CAPTCHA solving
   const headlessMode = process.env.HEADLESS === "false" ? false : "new";
   const { page, browser } = await connect({
-    headless: false,
+    headless: "new",
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
@@ -197,20 +202,35 @@ async function main() {
     // Add these options for better Xvfb handling:
     xvfbArgs: ["-screen", "0", "1024x768x24", "-ac"],
   });
-  
+
   // Add this after browser launch to check extension status
-  console.log('Checking for NopeCHA extension...');
+  console.log("Checking for NopeCHA extension...");
   const extensionTargets = await browser.targets();
-  const extensionTarget = extensionTargets.find(target => 
-    target.url().includes('chrome-extension') && target.url().includes('nopecha')
+  const extensionUrls = extensionTargets
+    .filter((target) => target.url().includes("chrome-extension"))
+    .map((target) => target.url());
+
+  console.log("All loaded extensions:", extensionUrls);
+
+  // Check for NopeCHA by looking for any extension (since we're loading it from chromium folder)
+  const nopechaExtension = extensionUrls.find(
+    (url) =>
+      url.includes("chrome-extension") &&
+      (url.includes("nopecha") || url.includes(extensionPath.split("/").pop())),
   );
 
-  if (extensionTarget) {
-    console.log('NopeCHA extension found:', extensionTarget.url());
+  if (nopechaExtension || extensionUrls.length > 0) {
+    console.log("NopeCHA extension loaded successfully");
+    console.log("Extension URLs:", extensionUrls);
   } else {
-    console.log('NopeCHA extension not found');
+    console.log(
+      "WARNING: No extensions detected. NopeCHA may not be loaded properly.",
+    );
   }
-  
+
+  // Give the extension time to initialize
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
   );

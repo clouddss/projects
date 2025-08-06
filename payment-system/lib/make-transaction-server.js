@@ -160,14 +160,17 @@ async function main() {
   // Add this after browser launch to check extension status
   console.log('Checking for NopeCHA extension...');
   const extensionTargets = await browser.targets();
-  const extensionTarget = extensionTargets.find(target => 
-    target.url().includes('chrome-extension') && target.url().includes('nopecha')
-  );
-
-  if (extensionTarget) {
-    console.log('NopeCHA extension found:', extensionTarget.url());
+  const extensionUrls = extensionTargets
+    .filter(target => target.url().includes('chrome-extension'))
+    .map(target => target.url());
+  
+  console.log('All loaded extensions:', extensionUrls);
+  
+  // Note: Extensions may not load in headless mode
+  if (extensionUrls.length > 0) {
+    console.log('Extensions detected:', extensionUrls);
   } else {
-    console.log('NopeCHA extension not found');
+    console.log('No extensions detected (this is normal in headless mode)');
   }
 
   await page.setUserAgent(

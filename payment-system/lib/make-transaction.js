@@ -190,7 +190,6 @@ async function main() {
       "--disable-dev-shm-usage",
       "--disable-blink-features=AutomationControlled",
       "--disable-features=site-per-process",
-      "--single-process",
     ],
     disableXvfb: false, // Let the library handle Xvfb
     defaultViewport: null,

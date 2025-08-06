@@ -87,10 +87,34 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
 
     // Check for reCAPTCHA v2
     const recaptchaV2 = await page.evaluate(() => {
-      const sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
+      // Multiple ways to find sitekey
+      let sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
+      
+      // Check for reCAPTCHA div with sitekey
+      if (!sitekey) {
+        const recaptchaDiv = document.querySelector('.g-recaptcha');
+        if (recaptchaDiv) {
+          sitekey = recaptchaDiv.getAttribute('data-sitekey');
+        }
+      }
+      
+      // Check for sitekey in scripts
+      if (!sitekey) {
+        const scripts = Array.from(document.scripts);
+        for (const script of scripts) {
+          const match = script.innerHTML.match(/sitekey['"]\s*:\s*['"]([^'"]+)['"]/);
+          if (match) {
+            sitekey = match[1];
+            break;
+          }
+        }
+      }
+      
+      // Check for iframe with recaptcha
       const iframe = document.querySelector('iframe[src*="recaptcha"]');
+      
       return {
-        exists: !!iframe || !!sitekey,
+        exists: !!iframe || !!sitekey || !!document.querySelector('.g-recaptcha'),
         sitekey: sitekey,
         type: 'recaptcha_v2'
       };
@@ -115,12 +139,35 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
 
     // Check for hCaptcha
     const hcaptcha = await page.evaluate(() => {
-      const sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
-      const iframe = document.querySelector('iframe[src*="hcaptcha"]');
+      let sitekey = null;
+      
+      // Check for hCaptcha div
       const hcaptchaDiv = document.querySelector('.h-captcha');
+      if (hcaptchaDiv) {
+        sitekey = hcaptchaDiv.getAttribute('data-sitekey');
+      }
+      
+      // Check for data-sitekey in any element
+      if (!sitekey) {
+        const sitekeElem = document.querySelector('[data-sitekey]');
+        if (sitekeElem) {
+          sitekey = sitekeElem.getAttribute('data-sitekey');
+        }
+      }
+      
+      // Check for hCaptcha iframe
+      const iframe = document.querySelector('iframe[src*="hcaptcha"]');
+      if (iframe && !sitekey) {
+        // Try to extract sitekey from iframe src
+        const srcMatch = iframe.src.match(/sitekey=([^&]+)/);
+        if (srcMatch) {
+          sitekey = srcMatch[1];
+        }
+      }
+      
       return {
         exists: !!iframe || !!hcaptchaDiv,
-        sitekey: sitekey || hcaptchaDiv?.getAttribute('data-sitekey'),
+        sitekey: sitekey,
         type: 'hcaptcha'
       };
     });
@@ -137,6 +184,41 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
 
     if (!captchaToSolve.sitekey) {
       console.log("⚠️ CAPTCHA detected but no sitekey found");
+      
+      // Debug: Log HTML content around CAPTCHA elements
+      const debugInfo = await page.evaluate(() => {
+        const iframes = Array.from(document.querySelectorAll('iframe'));
+        const captchaIframes = iframes.filter(iframe => 
+          iframe.src.includes('recaptcha') || 
+          iframe.src.includes('hcaptcha') ||
+          iframe.title?.toLowerCase().includes('captcha')
+        );
+        
+        const captchaDivs = Array.from(document.querySelectorAll('.g-recaptcha, .h-captcha, [data-sitekey], [data-pkey]'));
+        
+        return {
+          captchaIframes: captchaIframes.map(iframe => ({
+            src: iframe.src,
+            title: iframe.title,
+            id: iframe.id,
+            className: iframe.className
+          })),
+          captchaDivs: captchaDivs.map(div => ({
+            tagName: div.tagName,
+            className: div.className,
+            id: div.id,
+            sitekey: div.getAttribute('data-sitekey'),
+            pkey: div.getAttribute('data-pkey'),
+            innerHTML: div.innerHTML.substring(0, 200) // First 200 chars
+          })),
+          allDataSitekeys: Array.from(document.querySelectorAll('[data-sitekey]')).map(el => el.getAttribute('data-sitekey')),
+          scripts: Array.from(document.scripts).filter(script => 
+            script.innerHTML.includes('sitekey') || script.innerHTML.includes('recaptcha')
+          ).map(script => script.innerHTML.substring(0, 300))
+        };
+      });
+      
+      console.log("🔍 CAPTCHA Debug Info:", JSON.stringify(debugInfo, null, 2));
       return false;
     }
 

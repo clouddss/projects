@@ -23,7 +23,12 @@ async function loadCookies(page, filePath) {
   }
   return false;
 }
-const blunrURL = "https://checkout.blunr.com/api/wallet/credit-user";
+// Use the correct Blunr API URL (not the checkout subdomain)
+// Try the main API domain instead of checkout subdomain
+// const blunrURL = "https://api.blunr.com/api/wallet/credit-user";
+// Alternative URLs to try:
+// const blunrURL = "https://blunr.com/api/wallet/credit-user";
+const blunrURL = "https://backend.blunr.com/api/wallet/credit-user";
 function askQuestion(query) {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -48,25 +53,63 @@ async function addFundsToCreatorWallet(blunrParams, amount) {
     console.log(
       `Adding ${amount} to creator wallet for recipient: ${blunrParams.recipientId}`,
     );
+    console.log(`Making request to: ${blunrURL}`);
 
-    const response = await axios.post(
-      blunrURL,
-      {
-        amount: parseFloat(amount),
-        recipientId: blunrParams.recipientId,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: 10000,
-      },
-    );
+    // Log the full request details for debugging
+    const requestData = {
+      amount: parseFloat(amount),
+      recipientId: blunrParams.recipientId,
+    };
+    console.log("Request data:", JSON.stringify(requestData, null, 2));
 
-    if (response.data.success || response.status === 200) {
+    // First, let's check if we can reach the API
+    console.log("Testing connection to Blunr API...");
+
+    const response = await axios.post(blunrURL, requestData, {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      timeout: 10000,
+      // Explicitly disable proxy for this request
+      proxy: false,
+      // Don't follow redirects automatically
+      maxRedirects: 0,
+      validateStatus: function (status) {
+        return true; // Accept any status code to see what's happening
+      },
+    });
+
+    console.log("Response status:", response.status);
+    console.log("Response headers:", response.headers);
+
+    if (response.status === 301 || response.status === 302) {
+      console.log("Redirect detected. Location:", response.headers.location);
+    }
+
+    if (response.status === 404) {
+      console.error("❌ Creator wallet API endpoint not found (404)");
+      console.error("Please check if the API endpoint is correct:", blunrURL);
+
+      // Check if we're getting a localhost response
+      if (
+        typeof response.data === "string" &&
+        response.data.includes("localhost:3000")
+      ) {
+        console.error(
+          "⚠️  WARNING: Request seems to be going to localhost instead of Blunr API!",
+        );
+        console.error(
+          "This might be due to proxy configuration or DNS issues.",
+        );
+      }
+    } else if (response.data.success || response.status === 200) {
       console.log("✅ Creator wallet updated successfully:", response.data);
     } else {
       console.error("❌ Failed to update creator wallet:", response.data);
+      console.error("Status code:", response.status);
     }
   } catch (error) {
     console.error("❌ Error adding funds to creator wallet:", error.message);
@@ -176,15 +219,17 @@ async function solveCaptchaIfNeeded(page) {
           );
           await helpButton.click();
           console.log("CAPTCHA solver clicked, waiting for resolution...");
-          
+
           // Wait and check if CAPTCHA was actually solved
           let captchaSolved = false;
           for (let attempt = 0; attempt < 6; attempt++) {
             await new Promise((resolve) => setTimeout(resolve, 2000));
-            
+
             // Check if CAPTCHA iframe still exists
             try {
-              const stillExists = await page.$('iframe[title="recaptcha challenge expires in two minutes"]');
+              const stillExists = await page.$(
+                'iframe[title="recaptcha challenge expires in two minutes"]',
+              );
               if (!stillExists) {
                 captchaSolved = true;
                 console.log("CAPTCHA appears to be solved!");
@@ -195,14 +240,16 @@ async function solveCaptchaIfNeeded(page) {
               captchaSolved = true;
               break;
             }
-            
-            console.log(`CAPTCHA still present, waiting... (attempt ${attempt + 1}/6)`);
+
+            console.log(
+              `CAPTCHA still present, waiting... (attempt ${attempt + 1}/6)`,
+            );
           }
-          
+
           if (!captchaSolved) {
             console.log("CAPTCHA solver may have failed, but continuing...");
           }
-          
+
           solverClicked = true;
           break;
         }
@@ -249,7 +296,8 @@ async function main() {
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      `--enable-gpu`,
+      // `--enable-gpu`,
+      // `--proxy-server=http://127.0.0.1:8080`
     ],
   });
   const page = await browser.newPage();

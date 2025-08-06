@@ -81,37 +81,99 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
 async function solveCaptchaIfNeeded(page) {
   try {
     console.log("Checking for CAPTCHA...");
-    const iframe = await page.waitForSelector(
-      'iframe[title="recaptcha challenge expires in two minutes"]',
-      { visible: true, timeout: 3000 },
-    );
-
-    if (!iframe) {
-      console.log("No CAPTCHA iframe found");
-      return;
+    
+    // Check for different types of reCAPTCHA iframes
+    const captchaSelectors = [
+      'iframe[title*="recaptcha"]',
+      'iframe[title*="reCAPTCHA"]',
+      'iframe[src*="google.com/recaptcha"]',
+      'iframe[src*="recaptcha.net"]'
+    ];
+    
+    let captchaFrame = null;
+    for (const selector of captchaSelectors) {
+      try {
+        const iframe = await page.$(selector);
+        if (iframe) {
+          console.log(`Found CAPTCHA iframe with selector: ${selector}`);
+          captchaFrame = iframe;
+          break;
+        }
+      } catch (e) {
+        // Continue checking other selectors
+      }
     }
-
-    const frame = await iframe.contentFrame();
+    
+    if (!captchaFrame) {
+      console.log("No CAPTCHA iframe found");
+      return false;
+    }
+    
+    // Try to access the frame content
+    const frame = await captchaFrame.contentFrame();
     if (!frame) {
       console.log("Could not access CAPTCHA iframe content");
-      return;
+      return false;
     }
-
-    const helpButton = await frame.waitForSelector(
+    
+    // Look for various button selectors that Buster might use
+    const buttonSelectors = [
       "div.button-holder.help-button-holder",
-      { timeout: 1000 },
-    );
-
-    if (helpButton) {
-      console.log("CAPTCHA found, attempting to solve...");
-      await helpButton.click();
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for solver
-      console.log("CAPTCHA solver clicked.");
-    } else {
-      console.log("CAPTCHA iframe found but no help button");
+      "button.help-button",
+      "#recaptcha-help-button",
+      ".rc-button-help",
+      "div[role='button']"
+    ];
+    
+    let solverButton = null;
+    for (const selector of buttonSelectors) {
+      try {
+        solverButton = await frame.$(selector);
+        if (solverButton) {
+          console.log(`Found solver button with selector: ${selector}`);
+          
+          // Check if the element is clickable
+          const isClickable = await frame.evaluate((sel) => {
+            const el = document.querySelector(sel);
+            if (!el) return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
+          }, selector);
+          
+          if (isClickable) {
+            console.log("CAPTCHA found, attempting to solve...");
+            await solverButton.click();
+            await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for solver
+            console.log("CAPTCHA solver clicked.");
+            return true;
+          } else {
+            console.log(`Button found but not clickable: ${selector}`);
+          }
+        }
+      } catch (e) {
+        console.log(`Error checking button selector ${selector}:`, e.message);
+      }
     }
+    
+    // If no solver button found, check if Buster extension is properly loaded
+    console.log("CAPTCHA detected but solver button not found. Buster extension may not be loaded properly.");
+    
+    // Try alternative approach - check for audio button
+    try {
+      const audioButton = await frame.$('#recaptcha-audio-button');
+      if (audioButton) {
+        console.log("Found audio challenge button as fallback");
+        await audioButton.click();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    } catch (e) {
+      console.log("Audio button fallback failed:", e.message);
+    }
+    
+    return false;
   } catch (error) {
     console.log("CAPTCHA check failed:", error.message);
+    return false;
   }
 }
 

@@ -320,44 +320,49 @@ async function main() {
   const extensionPath = path.join(process.cwd(), "buster-extension");
   // Proxy configuration
   const proxyServer = "118.193.58.115:2333";
-  const proxyUsername = "u7b7995b956e805c6-zone-custom-region-se-st-skanecounty-city-malmö";
+  const proxyUsername =
+    "u7b7995b956e805c6-zone-custom-region-se-st-skanecounty-city-malmö";
   const proxyPassword = "u7b7995b956e805c6";
-  
+
   const browser = await puppeteerExtra.launch({
     headless: "new",
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      `--proxy-server=${proxyServer}`,
-      "--disable-web-security",
-      "--disable-features=VizDisplayCompositor",
     ],
   });
   const page = await browser.newPage();
 
   // Authenticate with proxy - note the await
-  await page.authenticate({
+  /*
+    await page.authenticate({
     username: proxyUsername,
     password: proxyPassword,
   });
-  
-  console.log(`Using proxy: ${proxyServer} with username: ${proxyUsername}`);
+  */
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
   );
-  
+
+  // Try to load existing cookies
+  const cookiesPath = path.join(__dirname, "cookies.json");
+  await loadCookies(page, cookiesPath);
+
   // Test proxy by checking IP
-  try {
+  /* try {
     console.log("Testing proxy connection...");
-    await page.goto("https://httpbin.org/ip", { waitUntil: "networkidle2", timeout: 10000 });
+    await page.goto("https://httpbin.org/ip", {
+      waitUntil: "networkidle2",
+      timeout: 10000,
+    });
     const ipInfo = await page.evaluate(() => document.body.textContent);
     console.log("Current IP info:", ipInfo);
   } catch (ipError) {
     console.log("Could not verify IP:", ipError.message);
-  }
-  
+  } */
+
   let captchaInterval;
   try {
     await page.waitForNetworkIdle({ timeout: 60000 });
@@ -369,47 +374,38 @@ async function main() {
     });
 
     // Log the current URL in case of redirect
-    const currentUrl = page.url();
-    console.log("Current URL after navigation:", currentUrl);
-
-    await page.screenshot({
-      path: path.join(__dirname, "screenshots", "initial-load.png"),
-      fullPage: true,
-    });
     console.log("Initial page loaded.");
 
     // Try to load existing cookies
-    const cookiesPath = path.join(__dirname, "cookies.json");
+
+    /*
+     const cookiesPath = path.join(__dirname, "cookies.json");
     const cookiesLoaded = await loadCookies(page, cookiesPath);
 
-    if (cookiesLoaded) {
+   if (cookiesLoaded) {
       console.log("Cookies loaded, refreshing page to apply them...");
       await page.reload({ waitUntil: "networkidle2" });
       console.log("Page reloaded with cookies.");
-    }
-
+    } */
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 5000);
 
     console.log(`Entering ${amount}...`);
 
     try {
       // Wait for page to fully load
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Give the page time to load
 
       // Additional wait for dynamic content
-      await page
+      /*
+        await page
         .waitForFunction(() => document.readyState === "complete", {
-          timeout: 10000,
+          timeout: 3000,
         })
         .catch(() => {
           console.log("Document ready timeout, continuing anyway...");
-        });
+        }); */
 
       // Take a debug screenshot
-      await page.screenshot({
-        path: path.join(__dirname, "screenshots", "debug-before-amount.png"),
-        fullPage: true,
-      });
 
       // Try multiple selectors
       const selectors = [

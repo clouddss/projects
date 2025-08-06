@@ -3,20 +3,9 @@ const path = require("path");
 const puppeteerExtra = require("puppeteer-extra");
 const Stealth = require("puppeteer-extra-plugin-stealth");
 const axios = require("axios");
-const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
+const TwoCaptchaSolver = require("./captcha-solver");
 
 puppeteerExtra.use(Stealth());
-
-// Configure RecaptchaPlugin with 2captcha or another service
-puppeteerExtra.use(
-  RecaptchaPlugin({
-    provider: {
-      id: "2captcha",
-      token: process.env.CAPTCHA_API_KEY || "YOUR_2CAPTCHA_API_KEY", // Add your 2captcha API key
-    },
-    visualFeedback: true, // colorize reCAPTCHAs (violet = detected, green = solved)
-  })
-);
 
 const blunrURL = "https://checkout.blunr.com/api/wallet/credit-user";
 
@@ -92,32 +81,111 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
   throw new Error("Paybis iframe did not appear after multiple retries.");
 }
 
-async function solveCaptchaWithPlugin(page) {
+async function solveCaptchaWith2Captcha(page, captchaSolver) {
   try {
-    console.log("Checking for CAPTCHA...");
-    
-    // The plugin will automatically detect and solve reCAPTCHAs
-    const { captchas, solutions, solved, error } = await page.solveRecaptchas();
-    
-    if (error) {
-      console.error("Error solving CAPTCHAs:", error);
+    console.log("🔍 Checking for CAPTCHAs...");
+
+    // Check for reCAPTCHA v2
+    const recaptchaV2 = await page.evaluate(() => {
+      const sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
+      const iframe = document.querySelector('iframe[src*="recaptcha"]');
+      return {
+        exists: !!iframe || !!sitekey,
+        sitekey: sitekey,
+        type: 'recaptcha_v2'
+      };
+    });
+
+    // Check for reCAPTCHA v3
+    const recaptchaV3 = await page.evaluate(() => {
+      const scripts = Array.from(document.scripts);
+      const v3Script = scripts.find(script => 
+        script.src.includes('recaptcha') && script.src.includes('render')
+      );
+      if (v3Script) {
+        const url = new URL(v3Script.src);
+        return {
+          exists: true,
+          sitekey: url.searchParams.get('render'),
+          type: 'recaptcha_v3'
+        };
+      }
+      return { exists: false };
+    });
+
+    // Check for hCaptcha
+    const hcaptcha = await page.evaluate(() => {
+      const sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
+      const iframe = document.querySelector('iframe[src*="hcaptcha"]');
+      const hcaptchaDiv = document.querySelector('.h-captcha');
+      return {
+        exists: !!iframe || !!hcaptchaDiv,
+        sitekey: sitekey || hcaptchaDiv?.getAttribute('data-sitekey'),
+        type: 'hcaptcha'
+      };
+    });
+
+    let captchaToSolve = null;
+    if (recaptchaV2.exists) captchaToSolve = recaptchaV2;
+    else if (recaptchaV3.exists) captchaToSolve = recaptchaV3;
+    else if (hcaptcha.exists) captchaToSolve = hcaptcha;
+
+    if (!captchaToSolve) {
+      console.log("ℹ️ No CAPTCHA detected");
       return false;
     }
-    
-    if (solved && solved.length > 0) {
-      console.log(`✅ Solved ${solved.length} CAPTCHA(s) successfully!`);
-      return true;
+
+    if (!captchaToSolve.sitekey) {
+      console.log("⚠️ CAPTCHA detected but no sitekey found");
+      return false;
     }
+
+    console.log(`🎯 ${captchaToSolve.type} detected with sitekey: ${captchaToSolve.sitekey}`);
     
-    if (captchas && captchas.length === 0) {
-      console.log("No CAPTCHAs detected on the page");
-      return true;
+    const currentUrl = page.url();
+    let solution;
+
+    // Solve based on CAPTCHA type
+    switch (captchaToSolve.type) {
+      case 'recaptcha_v2':
+        solution = await captchaSolver.solveRecaptchaV2(captchaToSolve.sitekey, currentUrl);
+        break;
+      case 'recaptcha_v3':
+        solution = await captchaSolver.solveRecaptchaV3(captchaToSolve.sitekey, currentUrl);
+        break;
+      case 'hcaptcha':
+        solution = await captchaSolver.solveHCaptcha(captchaToSolve.sitekey, currentUrl);
+        break;
+      default:
+        throw new Error(`Unsupported CAPTCHA type: ${captchaToSolve.type}`);
     }
+
+    // Inject the solution
+    console.log("💉 Injecting CAPTCHA solution...");
+    await page.evaluate((solution, captchaType) => {
+      if (captchaType === 'recaptcha_v2' || captchaType === 'recaptcha_v3') {
+        const textarea = document.querySelector('textarea[name="g-recaptcha-response"]');
+        if (textarea) {
+          textarea.style.display = 'block';
+          textarea.value = solution;
+          textarea.dispatchEvent(new Event('change'));
+        }
+      } else if (captchaType === 'hcaptcha') {
+        const textarea = document.querySelector('textarea[name="h-captcha-response"]');
+        if (textarea) {
+          textarea.style.display = 'block';
+          textarea.value = solution;
+          textarea.dispatchEvent(new Event('change'));
+        }
+      }
+    }, solution, captchaToSolve.type);
+
+    console.log("✅ CAPTCHA solution injected successfully!");
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    console.log("CAPTCHAs detected but not solved");
-    return false;
+    return true;
   } catch (error) {
-    console.error("Error in CAPTCHA solving:", error.message);
+    console.error("❌ Error solving CAPTCHA with 2captcha:", error.message);
     return false;
   }
 }
@@ -138,6 +206,25 @@ async function main() {
   // Parse Blunr parameters
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
+  // Initialize 2captcha solver
+  const twoCaptchaApiKey = process.env.TWOCAPTCHA_API_KEY;
+  if (!twoCaptchaApiKey) {
+    throw new Error("TWOCAPTCHA_API_KEY environment variable is required");
+  }
+  
+  const captchaSolver = new TwoCaptchaSolver(twoCaptchaApiKey);
+  console.log("🔑 Initializing 2captcha solver...");
+  
+  try {
+    const balance = await captchaSolver.getBalance();
+    console.log(`💰 2captcha balance: $${balance.toFixed(2)}`);
+    if (balance < 0.01) {
+      console.warn("⚠️ Low 2captcha balance! Consider topping up.");
+    }
+  } catch (error) {
+    console.warn("⚠️ Could not check 2captcha balance:", error.message);
+  }
+
   // For server environments, we need to use Xvfb or run in true headless mode
   const browser = await puppeteerExtra.launch({
     headless: true, // Use true headless mode for servers
@@ -156,22 +243,6 @@ async function main() {
   });
 
   const page = await browser.newPage();
-  
-  // Add this after browser launch to check extension status
-  console.log('Checking for NopeCHA extension...');
-  const extensionTargets = await browser.targets();
-  const extensionUrls = extensionTargets
-    .filter(target => target.url().includes('chrome-extension'))
-    .map(target => target.url());
-  
-  console.log('All loaded extensions:', extensionUrls);
-  
-  // Note: Extensions may not load in headless mode
-  if (extensionUrls.length > 0) {
-    console.log('Extensions detected:', extensionUrls);
-  } else {
-    console.log('No extensions detected (this is normal in headless mode)');
-  }
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -202,7 +273,7 @@ async function main() {
     console.log("Initial page loaded.");
 
     // Solve CAPTCHA if present
-    await solveCaptchaWithPlugin(page);
+    await solveCaptchaWith2Captcha(page, captchaSolver);
 
     console.log(`Entering ${amount}...`);
 
@@ -275,7 +346,7 @@ async function main() {
       console.log("Switched to Paybis iframe");
 
       // Solve CAPTCHA in iframe if needed
-      await solveCaptchaWithPlugin(frame);
+      await solveCaptchaWith2Captcha(frame, captchaSolver);
 
       console.log("Entering email...");
       await frame.waitForSelector('input[type="email"]', {
@@ -285,7 +356,7 @@ async function main() {
       await frame.type('input[type="email"]', gmail);
 
       // Check for CAPTCHA before proceeding
-      await solveCaptchaWithPlugin(frame);
+      await solveCaptchaWith2Captcha(frame, captchaSolver);
 
       console.log("Entering password...");
       await frame.waitForSelector('input[type="password"]', {

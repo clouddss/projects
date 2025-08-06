@@ -3,6 +3,7 @@ const path = require("path");
 const puppeteerExtra = require("puppeteer-extra");
 const Stealth = require("puppeteer-extra-plugin-stealth");
 const axios = require("axios");
+const TwoCaptchaSolver = require("./captcha-solver");
 puppeteerExtra.use(Stealth());
 const { connect } = require("puppeteer-real-browser");
 
@@ -79,83 +80,134 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
   throw new Error("Paybis iframe did not appear after multiple retries.");
 }
 
-async function solveCaptchaIfNeeded(page) {
+async function solveCaptchaWith2Captcha(page, captchaSolver) {
   try {
-    console.log("Checking for CAPTCHA...");
+    console.log("🔍 Checking for CAPTCHAs...");
 
-    // Check for different types of reCAPTCHA iframes
-    const captchaSelectors = [
-      'iframe[title*="recaptcha"]',
-      'iframe[title*="reCAPTCHA"]',
-      'iframe[src*="google.com/recaptcha"]',
-      'iframe[src*="recaptcha.net"]',
-    ];
+    // Check for reCAPTCHA v2
+    const recaptchaV2 = await page.evaluate(() => {
+      const sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
+      const iframe = document.querySelector('iframe[src*="recaptcha"]');
+      return {
+        exists: !!iframe || !!sitekey,
+        sitekey: sitekey,
+        type: 'recaptcha_v2'
+      };
+    });
 
-    let captchaDetected = false;
-    for (const selector of captchaSelectors) {
-      try {
-        const iframe = await page.$(selector);
-        if (iframe) {
-          console.log(`Found CAPTCHA iframe with selector: ${selector}`);
-          captchaDetected = true;
-          break;
-        }
-      } catch (e) {
-        // Continue checking other selectors
-      }
-    }
-
-    if (!captchaDetected) {
-      console.log("No CAPTCHA iframe found");
-      return false;
-    }
-
-    console.log(
-      "CAPTCHA detected! NopeCHA extension should handle it automatically.",
-    );
-
-    // Wait for NopeCHA to solve the CAPTCHA automatically
-    console.log("Waiting for NopeCHA to solve the CAPTCHA...");
-
-    // Wait for the CAPTCHA to be solved (check for success token or iframe disappearance)
-    try {
-      await page.waitForFunction(
-        () => {
-          // Check if reCAPTCHA response textarea has a value (indicates solved)
-          const responseTextarea = document.querySelector(
-            'textarea[name="g-recaptcha-response"]',
-          );
-          if (responseTextarea && responseTextarea.value) {
-            return true;
-          }
-
-          // Check if CAPTCHA iframe is gone
-          const captchaFrames = Array.from(
-            document.querySelectorAll("iframe"),
-          ).filter(
-            (iframe) =>
-              iframe.src.includes("recaptcha") ||
-              iframe.title?.includes("recaptcha") ||
-              iframe.title?.includes("reCAPTCHA"),
-          );
-
-          return captchaFrames.length === 0;
-        },
-        { timeout: 30000 }, // Wait up to 30 seconds for NopeCHA to solve
+    // Check for reCAPTCHA v3
+    const recaptchaV3 = await page.evaluate(() => {
+      const scripts = Array.from(document.scripts);
+      const v3Script = scripts.find(script => 
+        script.src.includes('recaptcha') && script.src.includes('render')
       );
+      if (v3Script) {
+        const url = new URL(v3Script.src);
+        return {
+          exists: true,
+          sitekey: url.searchParams.get('render'),
+          type: 'recaptcha_v3'
+        };
+      }
+      return { exists: false };
+    });
 
-      console.log("CAPTCHA solved by NopeCHA!");
-      return true;
-    } catch (error) {
-      console.log("Timeout waiting for NopeCHA to solve CAPTCHA.");
-      console.log("If NopeCHA doesn't work automatically, you may need to:");
-      console.log("1. Check if NopeCHA extension is properly configured");
-      console.log("2. Ensure you have credits in your NopeCHA account");
-      console.log("3. Run in headed mode (HEADLESS=false) to solve manually");
+    // Check for hCaptcha
+    const hcaptcha = await page.evaluate(() => {
+      const sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
+      const iframe = document.querySelector('iframe[src*="hcaptcha"]');
+      const hcaptchaDiv = document.querySelector('.h-captcha');
+      return {
+        exists: !!iframe || !!hcaptchaDiv,
+        sitekey: sitekey || hcaptchaDiv?.getAttribute('data-sitekey'),
+        type: 'hcaptcha'
+      };
+    });
+
+    // Check for FunCaptcha
+    const funcaptcha = await page.evaluate(() => {
+      const publicKey = document.querySelector('[data-pkey]')?.getAttribute('data-pkey');
+      const funcaptchaDiv = document.querySelector('#funcaptcha');
+      return {
+        exists: !!funcaptchaDiv || !!publicKey,
+        sitekey: publicKey,
+        type: 'funcaptcha'
+      };
+    });
+
+    let captchaToSolve = null;
+    if (recaptchaV2.exists) captchaToSolve = recaptchaV2;
+    else if (recaptchaV3.exists) captchaToSolve = recaptchaV3;
+    else if (hcaptcha.exists) captchaToSolve = hcaptcha;
+    else if (funcaptcha.exists) captchaToSolve = funcaptcha;
+
+    if (!captchaToSolve) {
+      console.log("ℹ️ No CAPTCHA detected");
       return false;
     }
+
+    if (!captchaToSolve.sitekey) {
+      console.log("⚠️ CAPTCHA detected but no sitekey found");
+      return false;
+    }
+
+    console.log(`🎯 ${captchaToSolve.type} detected with sitekey: ${captchaToSolve.sitekey}`);
+    
+    const currentUrl = page.url();
+    let solution;
+
+    // Solve based on CAPTCHA type
+    switch (captchaToSolve.type) {
+      case 'recaptcha_v2':
+        solution = await captchaSolver.solveRecaptchaV2(captchaToSolve.sitekey, currentUrl);
+        break;
+      case 'recaptcha_v3':
+        solution = await captchaSolver.solveRecaptchaV3(captchaToSolve.sitekey, currentUrl);
+        break;
+      case 'hcaptcha':
+        solution = await captchaSolver.solveHCaptcha(captchaToSolve.sitekey, currentUrl);
+        break;
+      case 'funcaptcha':
+        solution = await captchaSolver.solveFunCaptcha(captchaToSolve.sitekey, currentUrl);
+        break;
+      default:
+        throw new Error(`Unsupported CAPTCHA type: ${captchaToSolve.type}`);
+    }
+
+    // Inject the solution
+    console.log("💉 Injecting CAPTCHA solution...");
+    await page.evaluate((solution, captchaType) => {
+      if (captchaType === 'recaptcha_v2' || captchaType === 'recaptcha_v3') {
+        const textarea = document.querySelector('textarea[name="g-recaptcha-response"]');
+        if (textarea) {
+          textarea.style.display = 'block';
+          textarea.value = solution;
+          textarea.dispatchEvent(new Event('change'));
+        }
+        
+        // Trigger reCAPTCHA callback if exists
+        if (window.grecaptcha && window.grecaptcha.getResponse) {
+          window.grecaptcha.execute();
+        }
+      } else if (captchaType === 'hcaptcha') {
+        const textarea = document.querySelector('textarea[name="h-captcha-response"]');
+        if (textarea) {
+          textarea.style.display = 'block';
+          textarea.value = solution;
+          textarea.dispatchEvent(new Event('change'));
+        }
+      }
+      // Add more injection logic for other CAPTCHA types as needed
+    }, solution, captchaToSolve.type);
+
+    console.log("✅ CAPTCHA solution injected successfully!");
+    
+    // Small delay to ensure the solution is processed
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    return true;
   } catch (error) {
-    console.log("CAPTCHA check failed:", error.message);
+    console.error("❌ Error solving CAPTCHA with 2captcha:", error.message);
     return false;
   }
 }
@@ -176,60 +228,40 @@ async function main() {
   // Parse Blunr parameters
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
-  const extensionPath = path.join(process.cwd(), "chromium");
-  console.log("Extension path:", extensionPath);
-  console.log(
-    "Extension path exists:",
-    require("fs").existsSync(extensionPath),
-  );
+  // Initialize 2captcha solver
+  const twoCaptchaApiKey = process.env.TWOCAPTCHA_API_KEY;
+  if (!twoCaptchaApiKey) {
+    throw new Error("TWOCAPTCHA_API_KEY environment variable is required");
+  }
+  
+  const captchaSolver = new TwoCaptchaSolver(twoCaptchaApiKey);
+  console.log("🔑 Initializing 2captcha solver...");
+  
+  try {
+    const balance = await captchaSolver.getBalance();
+    console.log(`💰 2captcha balance: $${balance.toFixed(2)}`);
+    if (balance < 0.01) {
+      console.warn("⚠️ Low 2captcha balance! Consider topping up.");
+    }
+  } catch (error) {
+    console.warn("⚠️ Could not check 2captcha balance:", error.message);
+  }
 
-  // Check if we should run in headed mode for CAPTCHA solving
-  const headlessMode = process.env.HEADLESS === "false" ? false : "new";
+  // Launch browser without extensions
   const { page, browser } = await connect({
     headless: "new",
     args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
       "--no-sandbox",
       "--disable-gpu",
       "--disable-dev-shm-usage",
       "--disable-blink-features=AutomationControlled",
       "--disable-features=site-per-process",
     ],
-    disableXvfb: false, // Let the library handle Xvfb
+    disableXvfb: false,
     defaultViewport: null,
     ignoreDefaultArgs: ["--enable-automation"],
-    // Add these options for better Xvfb handling:
     xvfbArgs: ["-screen", "0", "1024x768x24", "-ac"],
   });
-
-  // Add this after browser launch to check extension status
-  console.log("Checking for NopeCHA extension...");
-  const extensionTargets = await browser.targets();
-  const extensionUrls = extensionTargets
-    .filter((target) => target.url().includes("chrome-extension"))
-    .map((target) => target.url());
-
-  console.log("All loaded extensions:", extensionUrls);
-
-  // Check for NopeCHA by looking for any extension (since we're loading it from chromium folder)
-  const nopechaExtension = extensionUrls.find(
-    (url) =>
-      url.includes("chrome-extension") &&
-      (url.includes("nopecha") || url.includes(extensionPath.split("/").pop())),
-  );
-
-  if (nopechaExtension || extensionUrls.length > 0) {
-    console.log("NopeCHA extension loaded successfully");
-    console.log("Extension URLs:", extensionUrls);
-  } else {
-    console.log(
-      "WARNING: No extensions detected. NopeCHA may not be loaded properly.",
-    );
-  }
-
-  // Give the extension time to initialize
-  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -254,7 +286,7 @@ async function main() {
     });
     console.log("Initial page loaded.");
 
-    captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 5000);
+    captchaInterval = setInterval(() => solveCaptchaWith2Captcha(page, captchaSolver), 5000);
 
     console.log(`Entering ${amount}...`);
 

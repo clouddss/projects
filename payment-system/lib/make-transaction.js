@@ -3,10 +3,26 @@ const path = require("path");
 const puppeteerExtra = require("puppeteer-extra");
 const Stealth = require("puppeteer-extra-plugin-stealth");
 const axios = require("axios");
-const TwoCaptchaSolver = require("./captcha-solver");
 puppeteerExtra.use(Stealth());
-const { connect } = require("puppeteer-real-browser");
+const fs = require("fs");
 
+// After successful login, save cookies
+async function saveCookies(page, filePath) {
+  const cookies = await page.cookies();
+  fs.writeFileSync(filePath, JSON.stringify(cookies, null, 2));
+  console.log(`Cookies saved to ${filePath}`);
+}
+
+// Load cookies from file
+async function loadCookies(page, filePath) {
+  if (fs.existsSync(filePath)) {
+    const cookies = JSON.parse(fs.readFileSync(filePath));
+    await page.setCookie(...cookies);
+    console.log(`Cookies loaded from ${filePath}`);
+    return true;
+  }
+  return false;
+}
 const blunrURL = "https://checkout.blunr.com/api/wallet/credit-user";
 function askQuestion(query) {
   const rl = readline.createInterface({
@@ -80,358 +96,96 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
   throw new Error("Paybis iframe did not appear after multiple retries.");
 }
 
-async function solveCaptchaWith2Captcha(page, captchaSolver) {
+async function solveCaptchaIfNeeded(page) {
   try {
-    // Check if we recently solved a CAPTCHA to avoid spam
-    const recentlySolved = await page.evaluate(() => {
-      const lastSolvedTime = window.lastCaptchaSolvedTime || 0;
-      const now = Date.now();
-      const timeSinceLastSolve = now - lastSolvedTime;
-      
-      if (timeSinceLastSolve < 10000) { // 10 second cooldown
-        console.log(`🕒 CAPTCHA cooldown active: ${Math.round((10000 - timeSinceLastSolve) / 1000)}s remaining`);
-        return true;
-      }
-      return false;
-    });
-    
-    if (recentlySolved) {
-      return false; // Skip solving if we solved one recently
+    // Check if page is still valid
+    if (!page || page.isClosed()) {
+      return;
     }
-    
-    console.log("🔍 Checking for CAPTCHAs...");
-    
-    // Check if there are pending CAPTCHA solutions or active challenges
-    const captchaState = await page.evaluate(() => {
-      const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
-      let hasSolution = false;
-      let hasActiveChallenge = false;
-      
-      // Check for existing solutions
-      for (const textarea of textareas) {
-        if (textarea.value && textarea.value.length > 0) {
-          hasSolution = true;
+
+    // Check for multiple CAPTCHA selectors
+    const captchaSelectors = [
+      'iframe[title="recaptcha challenge expires in two minutes"]',
+      'iframe[src*="recaptcha"]',
+      ".g-recaptcha",
+      "#recaptcha",
+      'iframe[name="c-recaptcha"]',
+    ];
+
+    let captchaFrame = null;
+    let foundCaptcha = false;
+
+    for (const selector of captchaSelectors) {
+      try {
+        const iframe = await page.waitForSelector(selector, {
+          visible: true,
+          timeout: 1000,
+        });
+        if (iframe) {
+          captchaFrame = await iframe.contentFrame();
+          if (captchaFrame) {
+            foundCaptcha = true;
+            console.log(`CAPTCHA found with selector: ${selector}`);
+            break;
+          }
+        }
+      } catch (e) {
+        // Try next selector
+      }
+    }
+
+    if (!foundCaptcha) {
+      return;
+    }
+
+    // Check if frame is still valid before using it
+    try {
+      await captchaFrame.evaluate(() => document.readyState);
+    } catch (frameError) {
+      return;
+    }
+
+    // Try multiple solver button selectors
+    const solverSelectors = [
+      "div.button-holder.help-button-holder",
+      ".solver-button",
+      "[id*=solver]",
+      ".buster-button",
+    ];
+
+    let solverClicked = false;
+    for (const selector of solverSelectors) {
+      try {
+        const helpButton = await captchaFrame.waitForSelector(selector, {
+          timeout: 2000,
+        });
+        if (helpButton) {
+          console.log(
+            `CAPTCHA solver found with selector: ${selector}, attempting to solve...`,
+          );
+          await helpButton.click();
+          await new Promise((resolve) => setTimeout(resolve, 8000)); // Wait longer for solver
+          console.log("CAPTCHA solver clicked.");
+          solverClicked = true;
           break;
         }
+      } catch (e) {
+        // Try next selector
       }
-      
-      // Check for active visual challenges (image grids, etc.)
-      const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
-      const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper, .rc-image-tile-44');
-      const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
-      
-      if (challengeFrames.length > 0 || challengeImages.length > 0 || challengeInstructions) {
-        hasActiveChallenge = true;
-      }
-      
-      return {
-        hasSolution,
-        hasActiveChallenge,
-        challengeText: challengeInstructions ? challengeInstructions.textContent : null
-      };
-    });
-    
-    if (captchaState.hasActiveChallenge) {
-      console.log("🔥 Active reCAPTCHA challenge detected:", captchaState.challengeText);
-      // Clear old solutions to force new solve
-      await page.evaluate(() => {
-        const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
-        textareas.forEach(textarea => {
-          textarea.value = '';
-        });
-        window.lastCaptchaSolvedTime = 0; // Reset cooldown for new challenge
-      });
-    } else if (captchaState.hasSolution) {
-      console.log("⏳ CAPTCHA solution already present, waiting for page to process...");
-      return false;
     }
 
-    // Check for reCAPTCHA v2
-    const recaptchaV2 = await page.evaluate(() => {
-      // Multiple ways to find sitekey
-      let sitekey = document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey');
-      
-      // Check for reCAPTCHA div with sitekey
-      if (!sitekey) {
-        const recaptchaDiv = document.querySelector('.g-recaptcha');
-        if (recaptchaDiv) {
-          sitekey = recaptchaDiv.getAttribute('data-sitekey');
-        }
-      }
-      
-      // Check for sitekey in scripts
-      if (!sitekey) {
-        const scripts = Array.from(document.scripts);
-        for (const script of scripts) {
-          // Look for various sitekey patterns
-          const patterns = [
-            /sitekey['"]\s*:\s*['"]([^'"]+)['"]/,
-            /recaptcha_v3_key['"]\s*:\s*['"]([^'"]+)['"]/,
-            /data-sitekey['"]\s*:\s*['"]([^'"]+)['"]/,
-            /"k":["']([^"']+)["']/
-          ];
-          
-          for (const pattern of patterns) {
-            const match = script.innerHTML.match(pattern);
-            if (match) {
-              sitekey = match[1];
-              break;
-            }
-          }
-          if (sitekey) break;
-        }
-      }
-      
-      // Check for sitekey in iframe URLs
-      if (!sitekey) {
-        const iframes = Array.from(document.querySelectorAll('iframe[src*="recaptcha"]'));
-        for (const iframe of iframes) {
-          const urlMatch = iframe.src.match(/[?&]k=([^&]+)/);
-          if (urlMatch) {
-            sitekey = urlMatch[1];
-            break;
-          }
-        }
-      }
-      
-      // Check for iframe with recaptcha
-      const iframe = document.querySelector('iframe[src*="recaptcha"]');
-      
-      return {
-        exists: !!iframe || !!sitekey || !!document.querySelector('.g-recaptcha'),
-        sitekey: sitekey,
-        type: 'recaptcha_v2'
-      };
-    });
-
-    // Check for reCAPTCHA v3
-    const recaptchaV3 = await page.evaluate(() => {
-      let sitekey = null;
-      
-      // Check for v3 script with render parameter
-      const scripts = Array.from(document.scripts);
-      const v3Script = scripts.find(script => 
-        script.src.includes('recaptcha') && script.src.includes('render')
-      );
-      if (v3Script) {
-        const url = new URL(v3Script.src);
-        sitekey = url.searchParams.get('render');
-      }
-      
-      // Check for recaptcha_v3_key in JavaScript variables
-      if (!sitekey) {
-        for (const script of scripts) {
-          const match = script.innerHTML.match(/recaptcha_v3_key['"]\s*:\s*['"]([^'"]+)['"]/);
-          if (match) {
-            sitekey = match[1];
-            break;
-          }
-        }
-      }
-      
-      // Check for window.recaptchaV3SiteKey or similar
-      if (!sitekey && window.recaptchaV3SiteKey) {
-        sitekey = window.recaptchaV3SiteKey;
-      }
-      
-      return {
-        exists: !!sitekey || !!v3Script,
-        sitekey: sitekey,
-        type: 'recaptcha_v3'
-      };
-    });
-
-    // Check for hCaptcha
-    const hcaptcha = await page.evaluate(() => {
-      let sitekey = null;
-      
-      // Check for hCaptcha div
-      const hcaptchaDiv = document.querySelector('.h-captcha');
-      if (hcaptchaDiv) {
-        sitekey = hcaptchaDiv.getAttribute('data-sitekey');
-      }
-      
-      // Check for data-sitekey in any element
-      if (!sitekey) {
-        const sitekeElem = document.querySelector('[data-sitekey]');
-        if (sitekeElem) {
-          sitekey = sitekeElem.getAttribute('data-sitekey');
-        }
-      }
-      
-      // Check for hCaptcha iframe
-      const iframe = document.querySelector('iframe[src*="hcaptcha"]');
-      if (iframe && !sitekey) {
-        // Try to extract sitekey from iframe src
-        const srcMatch = iframe.src.match(/sitekey=([^&]+)/);
-        if (srcMatch) {
-          sitekey = srcMatch[1];
-        }
-      }
-      
-      return {
-        exists: !!iframe || !!hcaptchaDiv,
-        sitekey: sitekey,
-        type: 'hcaptcha'
-      };
-    });
-
-    // Check for FunCaptcha
-    const funcaptcha = await page.evaluate(() => {
-      const publicKey = document.querySelector('[data-pkey]')?.getAttribute('data-pkey');
-      const funcaptchaDiv = document.querySelector('#funcaptcha');
-      return {
-        exists: !!funcaptchaDiv || !!publicKey,
-        sitekey: publicKey,
-        type: 'funcaptcha'
-      };
-    });
-
-    let captchaToSolve = null;
-    if (recaptchaV2.exists) captchaToSolve = recaptchaV2;
-    else if (recaptchaV3.exists) captchaToSolve = recaptchaV3;
-    else if (hcaptcha.exists) captchaToSolve = hcaptcha;
-    else if (funcaptcha.exists) captchaToSolve = funcaptcha;
-
-    if (!captchaToSolve) {
-      console.log("ℹ️ No CAPTCHA detected");
-      return false;
+    if (!solverClicked) {
+      console.log("CAPTCHA detected but no solver button found");
     }
-
-    if (!captchaToSolve.sitekey) {
-      console.log("⚠️ CAPTCHA detected but no sitekey found");
-      
-      // Debug: Log HTML content around CAPTCHA elements
-      const debugInfo = await page.evaluate(() => {
-        const iframes = Array.from(document.querySelectorAll('iframe'));
-        const captchaIframes = iframes.filter(iframe => 
-          iframe.src.includes('recaptcha') || 
-          iframe.src.includes('hcaptcha') ||
-          iframe.title?.toLowerCase().includes('captcha')
-        );
-        
-        const captchaDivs = Array.from(document.querySelectorAll('.g-recaptcha, .h-captcha, [data-sitekey], [data-pkey]'));
-        
-        return {
-          captchaIframes: captchaIframes.map(iframe => ({
-            src: iframe.src,
-            title: iframe.title,
-            id: iframe.id,
-            className: iframe.className
-          })),
-          captchaDivs: captchaDivs.map(div => ({
-            tagName: div.tagName,
-            className: div.className,
-            id: div.id,
-            sitekey: div.getAttribute('data-sitekey'),
-            pkey: div.getAttribute('data-pkey'),
-            innerHTML: div.innerHTML.substring(0, 200) // First 200 chars
-          })),
-          allDataSitekeys: Array.from(document.querySelectorAll('[data-sitekey]')).map(el => el.getAttribute('data-sitekey')),
-          scripts: Array.from(document.scripts).filter(script => 
-            script.innerHTML.includes('sitekey') || script.innerHTML.includes('recaptcha')
-          ).map(script => script.innerHTML.substring(0, 300))
-        };
-      });
-      
-      console.log("🔍 CAPTCHA Debug Info:", JSON.stringify(debugInfo, null, 2));
-      return false;
-    }
-
-    console.log(`🎯 ${captchaToSolve.type} detected with sitekey: ${captchaToSolve.sitekey}`);
-    
-    const currentUrl = page.url();
-    let solution;
-
-    // Solve based on CAPTCHA type
-    switch (captchaToSolve.type) {
-      case 'recaptcha_v2':
-        // Check if it's invisible reCAPTCHA
-        const isInvisible = await page.evaluate(() => {
-          const iframes = document.querySelectorAll('iframe[src*="recaptcha"]');
-          return Array.from(iframes).some(iframe => iframe.src.includes('size=invisible'));
-        });
-        solution = await captchaSolver.solveRecaptchaV2(captchaToSolve.sitekey, currentUrl, null, isInvisible);
-        break;
-      case 'recaptcha_v3':
-        solution = await captchaSolver.solveRecaptchaV3(captchaToSolve.sitekey, currentUrl);
-        break;
-      case 'hcaptcha':
-        solution = await captchaSolver.solveHCaptcha(captchaToSolve.sitekey, currentUrl);
-        break;
-      case 'funcaptcha':
-        solution = await captchaSolver.solveFunCaptcha(captchaToSolve.sitekey, currentUrl);
-        break;
-      default:
-        throw new Error(`Unsupported CAPTCHA type: ${captchaToSolve.type}`);
-    }
-
-    // Inject the solution
-    console.log("💉 Injecting CAPTCHA solution...");
-    await page.evaluate((solution, captchaType) => {
-      if (captchaType === 'recaptcha_v2' || captchaType === 'recaptcha_v3') {
-        // Find all reCAPTCHA response textareas
-        const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
-        textareas.forEach(textarea => {
-          textarea.style.display = 'block';
-          textarea.value = solution;
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
-          textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        
-        // Trigger reCAPTCHA callback if exists
-        if (window.grecaptcha) {
-          // Try to execute callbacks
-          if (window.grecaptcha.execute) {
-            try {
-              window.grecaptcha.execute();
-            } catch (e) {
-              console.log('grecaptcha.execute failed:', e);
-            }
-          }
-          
-          // Trigger any registered callbacks
-          if (window.recaptchaCallback && typeof window.recaptchaCallback === 'function') {
-            window.recaptchaCallback(solution);
-          }
-        }
-        
-        // Mark the CAPTCHA as solved for tracking
-        window.captchaSolved = true;
-        window.lastCaptchaSolvedTime = Date.now();
-        
-      } else if (captchaType === 'hcaptcha') {
-        const textareas = document.querySelectorAll('textarea[name="h-captcha-response"]');
-        textareas.forEach(textarea => {
-          textarea.style.display = 'block';
-          textarea.value = solution;
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
-          textarea.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        window.captchaSolved = true;
-        window.lastCaptchaSolvedTime = Date.now();
-      }
-    }, solution, captchaToSolve.type);
-
-    console.log("✅ CAPTCHA solution injected successfully!");
-    
-    // Wait longer for the solution to be processed and check if it was accepted
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Check if CAPTCHA was accepted (page should progress or CAPTCHA should disappear)
-    const captchaStillVisible = await page.evaluate(() => {
-      const iframes = Array.from(document.querySelectorAll('iframe[src*="recaptcha"]'));
-      return iframes.length > 0 && !window.captchaSolved;
-    });
-    
-    if (!captchaStillVisible) {
-      console.log("🚀 CAPTCHA appears to have been accepted, page should progress");
-    }
-    
-    return true;
   } catch (error) {
-    console.error("❌ Error solving CAPTCHA with 2captcha:", error.message);
-    return false;
+    // Silently handle common frame detachment errors
+    if (
+      error.message.includes("detached") ||
+      error.message.includes("Target closed")
+    ) {
+      return;
+    }
+    // Don't log CAPTCHA check failures to reduce noise
   }
 }
 
@@ -451,40 +205,17 @@ async function main() {
   // Parse Blunr parameters
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
-  // Initialize 2captcha solver
-  const twoCaptchaApiKey = process.env.TWOCAPTCHA_API_KEY;
-  if (!twoCaptchaApiKey) {
-    throw new Error("TWOCAPTCHA_API_KEY environment variable is required");
-  }
-  
-  const captchaSolver = new TwoCaptchaSolver(twoCaptchaApiKey);
-  console.log("🔑 Initializing 2captcha solver...");
-  
-  try {
-    const balance = await captchaSolver.getBalance();
-    console.log(`💰 2captcha balance: $${balance.toFixed(2)}`);
-    if (balance < 0.01) {
-      console.warn("⚠️ Low 2captcha balance! Consider topping up.");
-    }
-  } catch (error) {
-    console.warn("⚠️ Could not check 2captcha balance:", error.message);
-  }
-
-  // Launch browser without extensions
-  const { page, browser } = await connect({
+  const extensionPath = path.join(process.cwd(), "buster-extension");
+  const browser = await puppeteerExtra.launch({
     headless: "new",
     args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      "--disable-gpu",
-      "--disable-dev-shm-usage",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-features=site-per-process",
+      `--enable-gpu`,
     ],
-    disableXvfb: false,
-    defaultViewport: null,
-    ignoreDefaultArgs: ["--enable-automation"],
-    xvfbArgs: ["-screen", "0", "1024x768x24", "-ac"],
   });
+  const page = await browser.newPage();
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -509,20 +240,17 @@ async function main() {
     });
     console.log("Initial page loaded.");
 
-    // Create a smart CAPTCHA interval that can be paused
-    let captchaProcessing = false;
-    captchaInterval = setInterval(async () => {
-      if (!captchaProcessing) {
-        captchaProcessing = true;
-        try {
-          await solveCaptchaWith2Captcha(page, captchaSolver);
-        } catch (error) {
-          console.error("Error in CAPTCHA interval:", error.message);
-        } finally {
-          captchaProcessing = false;
-        }
-      }
-    }, 5000);
+    // Try to load existing cookies
+    const cookiesPath = path.join(__dirname, "cookies.json");
+    const cookiesLoaded = await loadCookies(page, cookiesPath);
+
+    if (cookiesLoaded) {
+      console.log("Cookies loaded, refreshing page to apply them...");
+      await page.reload({ waitUntil: "networkidle2" });
+      console.log("Page reloaded with cookies.");
+    }
+
+    captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 5000);
 
     console.log(`Entering ${amount}...`);
 
@@ -669,8 +397,8 @@ async function main() {
       throw error;
     }
 
-    console.log("Waiting for 2 seconds...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("Waiting for 1 second...");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     console.log("Clicking the first 'Buy' button...");
     const buyButtonHandle = await page.evaluateHandle(() => {
@@ -679,14 +407,17 @@ async function main() {
     });
     if (buyButtonHandle.asElement()) {
       await buyButtonHandle.asElement().click();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await buyButtonHandle.asElement().click();
     } else {
       throw new Error('Could not find "Buy" button');
     }
     console.log("First 'Buy' button clicked. Proceeding to login.");
 
-    console.log("Entering email...");
+    // Brief wait for page to respond after buy button click
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Try multiple email selectors
+    // Check if email input is visible (if not, we're already logged in)
     const emailSelectors = [
       "#email-input",
       'input[name="email"]',
@@ -694,267 +425,214 @@ async function main() {
       '.sw-input__input[type="email"]',
     ];
 
-    let emailInput = null;
+    let emailInputVisible = false;
     for (const selector of emailSelectors) {
       try {
-        console.log(`Trying email selector: ${selector}`);
-        await page.waitForSelector(selector, { visible: true, timeout: 10000 });
-        emailInput = await page.$(selector);
-        if (emailInput) {
-          console.log(`Found email input with selector: ${selector}`);
-          break;
-        }
-      } catch (e) {
-        console.log(`Email selector ${selector} failed:`, e.message);
-      }
-    }
-
-    if (!emailInput) {
-      await page.screenshot({
-        path: path.join(__dirname, "screenshots", "email-input-debug.png"),
-        fullPage: true,
-      });
-      throw new Error("Could not find email input field");
-    }
-
-    await emailInput.click();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await emailInput.type(gmail);
-
-    console.log("Waiting 1 second...");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    console.log("Clicking 'Complete' after email...");
-
-    // Take screenshot before clicking complete
-    await page.screenshot({
-      path: path.join(__dirname, "screenshots", "before-email-complete.png"),
-      fullPage: true,
-    });
-
-    const completeButtonHandle = await page.evaluateHandle(() => {
-      const buttons = Array.from(
-        document.querySelectorAll('button[data-testid="submit"]'),
-      );
-      return buttons.find((button) => button.textContent.includes("Complete"));
-    });
-    if (completeButtonHandle.asElement()) {
-      await completeButtonHandle.asElement().click();
-      console.log("Email complete button clicked successfully");
-
-      // Wait a bit after clicking
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    } else {
-      // Log available buttons for debugging
-      const availableButtons = await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        return buttons.map((btn) => ({
-          text: btn.textContent?.trim(),
-          testId: btn.getAttribute("data-testid"),
-          disabled: btn.disabled,
-        }));
-      });
-      console.log(
-        "Available buttons:",
-        JSON.stringify(availableButtons, null, 2),
-      );
-      throw new Error('Could not find "Complete" button after email');
-    }
-
-    // Check if CAPTCHA is blocking the password field
-    console.log(
-      "Checking if CAPTCHA needs to be solved before password field...",
-    );
-    const captchaPresent = await page.evaluate(() => {
-      const iframes = Array.from(document.querySelectorAll("iframe"));
-      return iframes.some(
-        (iframe) =>
-          iframe.src.includes("recaptcha") ||
-          iframe.title?.includes("recaptcha") ||
-          iframe.title?.includes("reCAPTCHA"),
-      );
-    });
-
-    if (captchaPresent) {
-      console.log(
-        "CAPTCHA detected! Waiting for manual solve or Buster extension...",
-      );
-
-      // Give user time to solve CAPTCHA manually or wait for Buster
-      console.log(
-        "Please solve the CAPTCHA manually if Buster extension doesn't work.",
-      );
-      console.log("Waiting up to 60 seconds for CAPTCHA to be solved...");
-
-      // Wait for CAPTCHA to disappear or password field to appear
-      try {
-        await page.waitForFunction(
-          () => {
-            // Check if password field is now available
-            const passwordField =
-              document.querySelector("#password-input") ||
-              document.querySelector('input[name="password"]') ||
-              document.querySelector('input[type="password"]');
-
-            // Check if CAPTCHA challenge is completed
-            const activeChallenge = document.querySelector('.rc-imageselect-instructions') ||
-              document.querySelector('.rc-image-tile-wrapper') ||
-              document.querySelector('iframe[src*="bframe"]');
-
-            // Check if reCAPTCHA response is filled
-            const captchaResponse = document.querySelector('textarea[name="g-recaptcha-response"]');
-            const hasSolution = captchaResponse && captchaResponse.value && captchaResponse.value.length > 0;
-
-            // Return true if password field exists, no active challenge, or we have a solution
-            return passwordField || !activeChallenge || hasSolution;
-          },
-          { timeout: 180000 }, // Wait up to 3 minutes for complex challenges
-        );
-
-        console.log("CAPTCHA solved or password field appeared!");
-
-        // Small delay to ensure page has stabilized
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } catch (error) {
+        await page.waitForSelector(selector, { visible: true, timeout: 500 });
+        emailInputVisible = true;
         console.log(
-          "Timeout waiting for CAPTCHA to be solved. Continuing anyway...",
+          `Email input found with selector: ${selector} - proceeding with login`,
         );
-      }
-    }
-
-    console.log("Entering password...");
-    
-    // First check if CAPTCHA is still being solved
-    const captchaStillActive = await page.evaluate(() => {
-      const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
-      const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper');
-      const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
-      return challengeFrames.length > 0 || challengeImages.length > 0 || challengeInstructions;
-    });
-    
-    if (captchaStillActive) {
-      console.log("🔄 CAPTCHA still active, waiting for it to complete before looking for password field...");
-      try {
-        await page.waitForFunction(
-          () => {
-            const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
-            const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper');
-            const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
-            return challengeFrames.length === 0 && challengeImages.length === 0 && !challengeInstructions;
-          },
-          { timeout: 120000 } // 2 minutes for CAPTCHA to complete
-        );
-        console.log("✅ CAPTCHA challenge completed, now looking for password field");
-        // Small delay for page to stabilize
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (error) {
-        console.log("⏰ CAPTCHA challenge timeout, proceeding anyway...");
-      }
-    }
-
-    // Try multiple selectors and longer timeout
-    const passwordSelectors = [
-      "#password-input",
-      'input[name="password"]',
-      'input[type="password"]',
-      '.sw-input__input[type="password"]',
-    ];
-
-    let passwordInput = null;
-    let foundPasswordSelector = null;
-
-    for (const selector of passwordSelectors) {
-      try {
-        console.log(`Trying password selector: ${selector}`);
-        await page.waitForSelector(selector, { visible: true, timeout: 10000 });
-        passwordInput = await page.$(selector);
-        if (passwordInput) {
-          foundPasswordSelector = selector;
-          console.log(`Found password input with selector: ${selector}`);
-          break;
-        }
+        break;
       } catch (e) {
-        console.log(`Password selector ${selector} failed:`, e.message);
+        // Email input not found with this selector
       }
     }
 
-    if (!passwordInput) {
-      // Take debug screenshot
+    if (!emailInputVisible) {
+      console.log(
+        "No email input visible - appears to be already logged in. Skipping login process.",
+      );
+    } else {
+      console.log("Entering email...");
+
+      let emailInput = null;
+      for (const selector of emailSelectors) {
+        try {
+          console.log(`Trying email selector: ${selector}`);
+          await page.waitForSelector(selector, {
+            visible: true,
+            timeout: 10000,
+          });
+          emailInput = await page.$(selector);
+          if (emailInput) {
+            console.log(`Found email input with selector: ${selector}`);
+            break;
+          }
+        } catch (e) {
+          console.log(`Email selector ${selector} failed:`, e.message);
+        }
+      }
+
+      if (!emailInput) {
+        await page.screenshot({
+          path: path.join(__dirname, "screenshots", "email-input-debug.png"),
+          fullPage: true,
+        });
+        throw new Error("Could not find email input field");
+      }
+
+      await emailInput.click();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await emailInput.type(gmail);
+
+      console.log("Waiting 1 second...");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      console.log("Clicking 'Complete' after email...");
+
+      // Take screenshot before clicking complete
       await page.screenshot({
-        path: path.join(__dirname, "screenshots", "password-input-debug.png"),
+        path: path.join(__dirname, "screenshots", "before-email-complete.png"),
         fullPage: true,
       });
 
-      // Log all password-type inputs on the page
-      const passwordInputs = await page.evaluate(() => {
-        const inputs = Array.from(
-          document.querySelectorAll(
-            'input[type="password"], input[name="password"]',
-          ),
+      const completeButtonHandle = await page.evaluateHandle(() => {
+        const buttons = Array.from(
+          document.querySelectorAll('button[data-testid="submit"]'),
         );
-        return inputs.map((input) => ({
-          id: input.id,
-          name: input.name,
-          className: input.className,
-          placeholder: input.placeholder,
-          visible: input.offsetParent !== null,
-        }));
+        return buttons.find((button) =>
+          button.textContent.includes("Complete"),
+        );
       });
-      console.log(
-        "Available password inputs:",
-        JSON.stringify(passwordInputs, null, 2),
-      );
+      if (completeButtonHandle.asElement()) {
+        await completeButtonHandle.asElement().click();
+        console.log("Email complete button clicked successfully");
 
-      throw new Error("Could not find password input field");
-    }
+        // Wait a bit after clicking
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } else {
+        // Log available buttons for debugging
+        const availableButtons = await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll("button"));
+          return buttons.map((btn) => ({
+            text: btn.textContent?.trim(),
+            testId: btn.getAttribute("data-testid"),
+            disabled: btn.disabled,
+          }));
+        });
+        console.log(
+          "Available buttons:",
+          JSON.stringify(availableButtons, null, 2),
+        );
+        throw new Error('Could not find "Complete" button after email');
+      }
 
-    await passwordInput.click();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await passwordInput.type(password);
+      console.log("Entering password...");
 
-    console.log("Clicking 'Complete' after password to log in...");
+      // Try multiple selectors and longer timeout
+      const passwordSelectors = [
+        "#password-input",
+        'input[name="password"]',
+        'input[type="password"]',
+        '.sw-input__input[type="password"]',
+      ];
 
-    // Take screenshot before login
-    await page.screenshot({
-      path: path.join(__dirname, "screenshots", "before-login.png"),
-      fullPage: true,
-    });
+      let passwordInput = null;
+      let foundPasswordSelector = null;
 
-    const loginButtonHandle = await page.evaluateHandle(() => {
-      const buttons = Array.from(
-        document.querySelectorAll('button[data-testid="submit"]'),
-      );
-      return buttons.find((button) => button.textContent.includes("Complete"));
-    });
-    if (loginButtonHandle.asElement()) {
-      await loginButtonHandle.asElement().click();
-      console.log("Login button clicked successfully");
+      for (const selector of passwordSelectors) {
+        try {
+          console.log(`Trying password selector: ${selector}`);
+          await page.waitForSelector(selector, {
+            visible: true,
+            timeout: 10000,
+          });
+          passwordInput = await page.$(selector);
+          if (passwordInput) {
+            foundPasswordSelector = selector;
+            console.log(`Found password input with selector: ${selector}`);
+            break;
+          }
+        } catch (e) {
+          console.log(`Password selector ${selector} failed:`, e.message);
+        }
+      }
 
-      // Wait for login to process
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    } else {
-      // Log available buttons for debugging
-      const availableButtons = await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        return buttons.map((btn) => ({
-          text: btn.textContent?.trim(),
-          testId: btn.getAttribute("data-testid"),
-          disabled: btn.disabled,
-        }));
+      if (!passwordInput) {
+        // Take debug screenshot
+        await page.screenshot({
+          path: path.join(__dirname, "screenshots", "password-input-debug.png"),
+          fullPage: true,
+        });
+
+        // Log all password-type inputs on the page
+        const passwordInputs = await page.evaluate(() => {
+          const inputs = Array.from(
+            document.querySelectorAll(
+              'input[type="password"], input[name="password"]',
+            ),
+          );
+          return inputs.map((input) => ({
+            id: input.id,
+            name: input.name,
+            className: input.className,
+            placeholder: input.placeholder,
+            visible: input.offsetParent !== null,
+          }));
+        });
+        console.log(
+          "Available password inputs:",
+          JSON.stringify(passwordInputs, null, 2),
+        );
+
+        throw new Error("Could not find password input field");
+      }
+
+      await passwordInput.click();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await passwordInput.type(password);
+
+      console.log("Clicking 'Complete' after password to log in...");
+
+      // Take screenshot before login
+      await page.screenshot({
+        path: path.join(__dirname, "screenshots", "before-login.png"),
+        fullPage: true,
       });
-      console.log(
-        "Available login buttons:",
-        JSON.stringify(availableButtons, null, 2),
-      );
-      throw new Error('Could not find "Complete" login button');
+
+      const loginButtonHandle = await page.evaluateHandle(() => {
+        const buttons = Array.from(
+          document.querySelectorAll('button[data-testid="submit"]'),
+        );
+        return buttons.find((button) =>
+          button.textContent.includes("Complete"),
+        );
+      });
+      if (loginButtonHandle.asElement()) {
+        await loginButtonHandle.asElement().click();
+        console.log("Login button clicked successfully");
+
+        // Wait for login to process
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } else {
+        // Log available buttons for debugging
+        const availableButtons = await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll("button"));
+          return buttons.map((btn) => ({
+            text: btn.textContent?.trim(),
+            testId: btn.getAttribute("data-testid"),
+            disabled: btn.disabled,
+          }));
+        });
+        console.log(
+          "Available login buttons:",
+          JSON.stringify(availableButtons, null, 2),
+        );
+        throw new Error('Could not find "Complete" login button');
+      }
+
+      console.log("Login successful.");
+
+      console.log("Taking screenshot '2.png' of the main page after login.");
+      await page.screenshot({
+        path: path.join(__dirname, "screenshots", "2.png"),
+      });
+      console.log("Screenshot taken.");
+
+      // Save cookies after successful login to refresh them
+      await saveCookies(page, path.join(__dirname, "cookies.json"));
+      console.log("Cookies saved after login.");
     }
-
-    console.log("Login successful.");
-
-    console.log("Taking screenshot '2.png' of the main page after login.");
-    await page.screenshot({
-      path: path.join(__dirname, "screenshots", "2.png"),
-    });
-    console.log("Screenshot taken.");
 
     console.log("Entering wallet address...");
     await page.waitForSelector('input[name="wallet"]', { visible: true });
@@ -989,9 +667,20 @@ async function main() {
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "before-new-card.png"),
     });
+
+    // Check for CAPTCHA before looking for new card button
+    console.log("Checking for CAPTCHA before proceeding...");
+    await solveCaptchaIfNeeded(page);
+
     console.log("Waiting for 'New card' button...");
     let newCardClicked = false;
     for (let i = 0; i < 10; i++) {
+      // Check for CAPTCHA on each retry
+      if (i % 2 === 0) {
+        // Check every other iteration
+        await solveCaptchaIfNeeded(page);
+      }
+
       // Retry for 30 seconds
       for (const frame of page.frames()) {
         const newCard = await frame.$(".card-select__new-card .new-card");
@@ -1056,6 +745,45 @@ async function main() {
     await innerFrame.type('input[name="number"]', cardNumber, { delay: 100 });
     await innerFrame.type('input[name="exp"]', expiryDate, { delay: 100 });
     await innerFrame.type('input[name="cvv"]', cvv, { delay: 100 });
+
+    // Wait a moment for validation to occur
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Check for field errors in the payment form
+    const fieldErrors = await innerFrame.evaluate(() => {
+      const errorElements = document.querySelectorAll(".field__error");
+      const errors = [];
+      errorElements.forEach((errorEl) => {
+        const errorText = errorEl.textContent?.trim();
+        if (errorText && errorText.length > 0) {
+          errors.push(errorText);
+        }
+      });
+      return errors;
+    });
+
+    if (fieldErrors.length > 0) {
+      console.log("Field errors detected:", fieldErrors);
+
+      // Send error back to frontend and cancel transaction
+      process.send({
+        type: "payment-error",
+        errors: fieldErrors,
+        message: "Payment form validation failed",
+      });
+
+      // Take screenshot for debugging
+      await page.screenshot({
+        path: path.join(__dirname, "screenshots", "payment-form-errors.png"),
+        fullPage: true,
+      });
+
+      throw new Error(
+        `Payment form validation failed: ${fieldErrors.join(", ")}`,
+      );
+    }
+
+    console.log("No field errors detected, proceeding with payment");
 
     await outerFrame.evaluate(() => {
       window.scrollBy(0, 500); // Scroll down 500 pixels vertically

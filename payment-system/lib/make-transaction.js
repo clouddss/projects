@@ -217,18 +217,18 @@ async function solveCaptchaIfNeeded(page) {
           console.log(
             `CAPTCHA solver found with selector: ${selector}, attempting to solve... (attempt ${captchaAttempts}/${MAX_CAPTCHA_ATTEMPTS})`,
           );
-          
+
           try {
             // Try different clicking methods
             console.log("Attempting to click solver button...");
-            
+
             // Method 1: Direct click on the element
             await helpButton.click();
             console.log("Method 1: Direct click executed");
-            
+
             // Give it a moment to register
             await new Promise((resolve) => setTimeout(resolve, 500));
-            
+
             // Method 2: If direct click didn't work, try evaluating in frame context
             const clickResult = await captchaFrame.evaluate((sel) => {
               const button = document.querySelector(sel);
@@ -238,15 +238,14 @@ async function solveCaptchaIfNeeded(page) {
               }
               return false;
             }, selector);
-            
+
             if (clickResult) {
               console.log("Method 2: Frame evaluate click executed");
             }
-            
           } catch (clickError) {
             console.log("Error clicking solver button:", clickError.message);
           }
-          
+
           console.log("CAPTCHA solver clicked, waiting for resolution...");
 
           // Wait and check if CAPTCHA was actually solved
@@ -325,11 +324,18 @@ async function main() {
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
+      "--proxy-server=http://118.193.58.115:2333",
       // `--enable-gpu`,
       // `--proxy-server=http://127.0.0.1:8080`
     ],
   });
   const page = await browser.newPage();
+
+  page.authenticate({
+    username:
+      "u7b7995b956e805c6-zone-custom-region-se-st-skanecounty-city-malmö",
+    password: "u7b7995b956e805c6",
+  });
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -784,7 +790,6 @@ async function main() {
 
     // Check for CAPTCHA before looking for new card button
     console.log("Checking for CAPTCHA before proceeding...");
-    await solveCaptchaIfNeeded(page);
 
     console.log("Waiting for 'New card' button...");
     let newCardClicked = false;

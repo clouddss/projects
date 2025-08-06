@@ -96,10 +96,20 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
   throw new Error("Paybis iframe did not appear after multiple retries.");
 }
 
+// Track CAPTCHA attempts to prevent infinite loops
+let captchaAttempts = 0;
+const MAX_CAPTCHA_ATTEMPTS = 5;
+
 async function solveCaptchaIfNeeded(page) {
   try {
     // Check if page is still valid
     if (!page || page.isClosed()) {
+      return;
+    }
+
+    // Prevent infinite CAPTCHA solving loops
+    if (captchaAttempts >= MAX_CAPTCHA_ATTEMPTS) {
+      console.log("Max CAPTCHA attempts reached, skipping further attempts");
       return;
     }
 
@@ -160,12 +170,39 @@ async function solveCaptchaIfNeeded(page) {
           timeout: 2000,
         });
         if (helpButton) {
+          captchaAttempts++; // Increment attempt counter
           console.log(
-            `CAPTCHA solver found with selector: ${selector}, attempting to solve...`,
+            `CAPTCHA solver found with selector: ${selector}, attempting to solve... (attempt ${captchaAttempts}/${MAX_CAPTCHA_ATTEMPTS})`,
           );
           await helpButton.click();
-          await new Promise((resolve) => setTimeout(resolve, 8000)); // Wait longer for solver
-          console.log("CAPTCHA solver clicked.");
+          console.log("CAPTCHA solver clicked, waiting for resolution...");
+          
+          // Wait and check if CAPTCHA was actually solved
+          let captchaSolved = false;
+          for (let attempt = 0; attempt < 6; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            
+            // Check if CAPTCHA iframe still exists
+            try {
+              const stillExists = await page.$('iframe[title="recaptcha challenge expires in two minutes"]');
+              if (!stillExists) {
+                captchaSolved = true;
+                console.log("CAPTCHA appears to be solved!");
+                break;
+              }
+            } catch (e) {
+              // CAPTCHA might be solved
+              captchaSolved = true;
+              break;
+            }
+            
+            console.log(`CAPTCHA still present, waiting... (attempt ${attempt + 1}/6)`);
+          }
+          
+          if (!captchaSolved) {
+            console.log("CAPTCHA solver may have failed, but continuing...");
+          }
+          
           solverClicked = true;
           break;
         }
@@ -674,10 +711,10 @@ async function main() {
 
     console.log("Waiting for 'New card' button...");
     let newCardClicked = false;
-    for (let i = 0; i < 10; i++) {
-      // Check for CAPTCHA on each retry
-      if (i % 2 === 0) {
-        // Check every other iteration
+    for (let i = 0; i < 15; i++) {
+      // Check for CAPTCHA on first few attempts only
+      if (i < 8 && i % 2 === 0) {
+        // Check every other iteration for first 8 attempts
         await solveCaptchaIfNeeded(page);
       }
 

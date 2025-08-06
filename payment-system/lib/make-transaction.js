@@ -101,19 +101,47 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
     
     console.log("🔍 Checking for CAPTCHAs...");
     
-    // Check if there are pending CAPTCHA solutions
-    const hasPendingSolutions = await page.evaluate(() => {
+    // Check if there are pending CAPTCHA solutions or active challenges
+    const captchaState = await page.evaluate(() => {
       const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+      let hasSolution = false;
+      let hasActiveChallenge = false;
+      
+      // Check for existing solutions
       for (const textarea of textareas) {
         if (textarea.value && textarea.value.length > 0) {
-          console.log('🔄 Found existing CAPTCHA solution, waiting for page to process...');
-          return true;
+          hasSolution = true;
+          break;
         }
       }
-      return false;
+      
+      // Check for active visual challenges (image grids, etc.)
+      const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
+      const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper, .rc-image-tile-44');
+      const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
+      
+      if (challengeFrames.length > 0 || challengeImages.length > 0 || challengeInstructions) {
+        hasActiveChallenge = true;
+      }
+      
+      return {
+        hasSolution,
+        hasActiveChallenge,
+        challengeText: challengeInstructions ? challengeInstructions.textContent : null
+      };
     });
     
-    if (hasPendingSolutions) {
+    if (captchaState.hasActiveChallenge) {
+      console.log("🔥 Active reCAPTCHA challenge detected:", captchaState.challengeText);
+      // Clear old solutions to force new solve
+      await page.evaluate(() => {
+        const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+        textareas.forEach(textarea => {
+          textarea.value = '';
+        });
+        window.lastCaptchaSolvedTime = 0; // Reset cooldown for new challenge
+      });
+    } else if (captchaState.hasSolution) {
       console.log("⏳ CAPTCHA solution already present, waiting for page to process...");
       return false;
     }
@@ -318,7 +346,12 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
     // Solve based on CAPTCHA type
     switch (captchaToSolve.type) {
       case 'recaptcha_v2':
-        solution = await captchaSolver.solveRecaptchaV2(captchaToSolve.sitekey, currentUrl);
+        // Check if it's invisible reCAPTCHA
+        const isInvisible = await page.evaluate(() => {
+          const iframes = document.querySelectorAll('iframe[src*="recaptcha"]');
+          return Array.from(iframes).some(iframe => iframe.src.includes('size=invisible'));
+        });
+        solution = await captchaSolver.solveRecaptchaV2(captchaToSolve.sitekey, currentUrl, null, isInvisible);
         break;
       case 'recaptcha_v3':
         solution = await captchaSolver.solveRecaptchaV3(captchaToSolve.sitekey, currentUrl);

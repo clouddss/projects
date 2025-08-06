@@ -8,7 +8,7 @@ class TwoCaptchaSolver {
     this.pollInterval = 5000; // 5 seconds
   }
 
-  async solveRecaptchaV2(sitekey, pageUrl, proxy = null) {
+  async solveRecaptchaV2(sitekey, pageUrl, proxy = null, invisible = false) {
     try {
       console.log("🔄 Submitting reCAPTCHA v2 to 2captcha...");
 
@@ -19,6 +19,11 @@ class TwoCaptchaSolver {
         key: this.apiKey,
         json: 1,
       };
+      
+      // Handle invisible reCAPTCHA
+      if (invisible) {
+        submitData.invisible = 1;
+      }
 
       // Add proxy if provided
       if (proxy) {

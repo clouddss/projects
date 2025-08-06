@@ -1,0 +1,104 @@
+<div class="main-sidebar">
+  <ul class="nav nav-pills flex-column mb-auto w-100">
+    <li>
+      <a class="nav-link" (click)="openOffCanvas()">
+        <div class="profile-opt"><img src="{{ avatar }}" class="w-100 h-auto profile-opt" /></div>
+        <div class="nams-username">
+          {{ name }}
+          <span class="username"> {{ '@' + username }}</span>
+        </div>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" [routerLink]="routes.POSTS" routerLinkActive="active" aria-current="page">
+        <img src="../../../../assets/images/navbar/home-icon.svg" class="navbar-icon" alt="" />
+        <div>Home</div>
+      </a>
+    </li>
+    <li>
+      <a class="nav-link" [routerLink]="routes.INBOX" routerLinkActive="active">
+        <img src="../../../../assets/images/navbar/message-icon.svg" class="navbar-icon" />
+        <div>Messages</div>
+      </a>
+    </li>
+    <li>
+      <a
+        class="nav-link subscriptions"
+        [routerLink]="routes.SUBSCRIBED_ACCOUNT"
+        routerLinkActive="active"
+      >
+        <img src="../../../../assets/images/navbar/subscription-icon.svg" class="navbar-icon" />
+        <div>Your Subscription</div>
+      </a>
+    </li>
+    <li>
+      <a class="nav-link" [routerLink]="routes.PROFILE" routerLinkActive="active">
+        <img src="../../../../assets/images/navbar/profile-icon.svg" class="navbar-icon" />
+        <div>My profile</div>
+      </a>
+    </li>
+    <li>
+      <a class="nav-link" (click)="openOffCanvas()">
+        <img
+          src="../../../../assets/images/navbar/horizontal-ripple-icon.svg"
+          class="navbar-icon"
+        />
+        <div>More</div>
+      </a>
+    </li>
+    <li>
+      <button
+        *ngIf="isCreator"
+        class="btn btn-primary new-post"
+        [routerLink]="routes.CREATE_POSTS"
+        routerLinkActive="active"
+      >
+        <img src="../../../../assets/images/navbar/add-white-icon.svg" class="navbar-icon" />
+        <div>New post</div>
+      </button>
+    </li>
+  </ul>
+</div>
+
+<div class="phone-sidebar">
+  <ul class="nav nav-pills flex-column mb-auto w-100">
+    <li class="nav-item">
+      <a class="nav-link" aria-current="page" [routerLink]="routes.POSTS" routerLinkActive="active">
+        <img src="../../../../assets/images/navbar/home-icon.svg" class="navbar-icon" />
+        <div>Home</div>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        aria-current="page"
+        [routerLink]="routes.TOP_CREATORS"
+        routerLinkActive="active"
+      >
+        <img src="../../../../assets/images/navbar/search-icon.svg" class="navbar-icon" />
+        <div>Search</div>
+      </a>
+    </li>
+    <li *ngIf="isCreator">
+      <button
+        class="btn btn-primary new-post"
+        [routerLink]="routes.CREATE_POSTS"
+        routerLinkActive="active"
+      >
+        <img src="../../../../assets/images/navbar/add-icon.svg" class="navbar-icon" />
+        <div>New post</div>
+      </button>
+    </li>
+    <li>
+      <a class="nav-link" [routerLink]="routes.INBOX" routerLinkActive="active">
+        <img src="../../../../assets/images/navbar/message-icon.svg" class="navbar-icon" />
+        <div>Messages</div>
+      </a>
+    </li>
+    <li>
+      <a class="nav-link" (click)="openOffCanvas()">
+        <div class="profile-opt">ts</div>
+      </a>
+    </li>
+  </ul>
+</div>

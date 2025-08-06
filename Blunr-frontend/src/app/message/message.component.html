@@ -1,0 +1,84 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div
+    class="home-container"
+    [class.flex-row]="userChatRooms.length > 0"
+    [class.open-msg]="isChatisOpened"
+  >
+    @if (userChatRooms.length > 0) {
+      <div class="chat-list">
+        <div class="chat-header">Messages</div>
+        <div class="chat-body">
+          @for (room of userChatRooms; track $index) {
+            <div class="chat-tile" (click)="openChatOfUser(room._id)">
+              <div class="chat-link">
+                <div class="profile-opt">
+                  <img
+                    src="{{
+                      role === 'user'
+                        ? room.members[0].avatar || '../../../../assets/images/avatar.jpeg'
+                        : room.members[1].avatar || '../../../../assets/images/avatar.jpeg'
+                    }}"
+                    class="navbar-icon profile-opt"
+                    alt="icon"
+                  />
+                  @if (room.unreadCount > 0) {
+                    <div class="unread-badge">{{ room.unreadCount }}</div>
+                  }
+                </div>
+                <div class="d-flex flex-column">
+                  <div class="nams-username d-flex">
+                    {{ role === 'user' ? room.members[0].username : room.members[1].username }}
+                    <span class="username" class="last-msg">
+                      <img
+                        src="../../../../assets/images/navbar/at-icon.svg"
+                        class="navbar-icon"
+                        alt="icon"
+                      />
+                      {{ role === 'user' ? room.members[0].name : room.members[1].name }}
+                    </span>
+                  </div>
+                  <div class="last-msg" [class.unread-text]="room.unreadCount > 0">
+                    {{ room?.lastMessage?.text }}
+                  </div>
+                </div>
+                <div class="chat-time-container">
+                  <div class="chat-time">{{ formatDate(room?.lastMessage?.timestamp) }}</div>
+                  @if (room.unreadCount > 0) {
+                    <div class="unread-dot"></div>
+                  }
+                </div>
+              </div>
+            </div>
+          } @empty {
+            <app-empty-data
+              [message]="'You haven\u0027t subscribed to any creators yet.'"
+            ></app-empty-data>
+          }
+        </div>
+      </div>
+
+      @if (isChatisOpened) {
+        <app-chatbot 
+          style="width: 100%" 
+          (goChatBackEvent)="goChatBack()"
+          (messageSentEvent)="loadUserChatRooms()">
+        </app-chatbot>
+      } @else {
+        <ng-container *ngTemplateOutlet="noUsersSelected"></ng-container>
+      }
+    } @else {
+      <app-empty-data
+        [message]="'You haven\u0027t subscribed to any creators yet.'"
+      ></app-empty-data>
+    }
+  </div>
+</app-home-page-area>
+
+<ng-template #noUsersSelected>
+  <div class="chat-list no-chat">
+    <div class="no-msg">
+      <p>No Users Selected.</p>
+    </div>
+  </div>
+</ng-template>

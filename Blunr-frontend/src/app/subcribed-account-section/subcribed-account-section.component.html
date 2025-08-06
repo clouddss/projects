@@ -1,0 +1,18 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container">
+    <app-home-page-header-area></app-home-page-header-area>
+    <!-- <h2 class="suggestions-section-title mb-3">Your Subscriptions</h2> -->
+    @if (subsciptions.length > 0) {
+      <div class="card-subscribed">
+        @for (post of subsciptions; track $index) {
+          <app-subcribed-account [creatorData]="post.creator"></app-subcribed-account>
+        }
+      </div>
+    } @else {
+      <app-empty-data
+        [message]="'You haven\u0027t subscribed to any creators yet.'"
+      ></app-empty-data>
+    }
+  </div>
+</app-home-page-area>

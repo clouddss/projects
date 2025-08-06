@@ -1,0 +1,269 @@
+<div class="post-area">
+  <div class="post-area-header">
+    <div class="profile-post" (click)="redirectToProfile(creatorHandle)">
+      <img src="{{ avatar }}" class="img-fluid" alt="" />
+    </div>
+    <div class="profile-content" (click)="redirectToProfile(creatorHandle)">
+      <div class="g-user-name m-verified">
+        {{ creatorName }}
+        <img src="../../../../assets/images/navbar/verify-icon.svg" class="navbar-icon" />
+      </div>
+      <div _ngcontent-ng-c1829724023="" class="g-user-username">
+        <img src="../../../../assets/images/navbar/at-icon.svg" class="navbar-icon" />
+        {{ creatorHandle }}
+      </div>
+    </div>
+    <div class="profile-controls">
+      <span> {{ uploadedAt }} </span>
+
+      <div *ngIf="isReportable" class="dropdown">
+        <button
+          class="dropdown-toggle"
+          type="button"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+          (click)="openReportModal()"
+        >
+          <img
+            src="../../../../assets/images/report-icon.svg"
+            class="navbar-icon"
+            alt="icon to report post"
+          />
+        </button>
+      </div>
+      <div *ngIf="!isReportable" class="dropdown">
+        <button
+          class="dropdown-toggle"
+          type="button"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+          (click)="openDeleteModal()"
+        >
+          <img
+            src="../../../../assets/images/delete-icon.svg"
+            class="navbar-icon"
+            alt="icon to report post"
+          />
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="post-area-body">
+    <p>
+      {{ caption }}
+    </p>
+
+    <div class="post-area-content">
+      @if (isFree && isSubscribed) {
+        @if (isMultiOrSingle === 1) {
+          @if (getMediaType(postData?.media[0]?.url) === 'image') {
+            <ng-container
+              *ngTemplateOutlet="imageTemplate; context: { imageUrl: postData?.media[0]?.url }"
+            ></ng-container>
+          }
+          @if (getMediaType(postData?.media[0]?.url) === 'video') {
+            <ng-container
+              *ngTemplateOutlet="videoTemplate; context: { videoUrl: postData?.media[0]?.url }"
+            ></ng-container>
+          }
+        } @else if (isMultiOrSingle > 1) {
+          <ng-container
+            *ngTemplateOutlet="carouselTemplate; context: { data: postData?.media }"
+          ></ng-container>
+        }
+      } @else {
+        <div class="locked-content-post-area">
+          <ng-container
+            *ngTemplateOutlet="
+              lockedContent;
+              context: {
+                price: postData?.price,
+                postId: postData?._id,
+                recipientId: postData?.creator?._id,
+              }
+            "
+          ></ng-container>
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="post-area-footer">
+    <div class="action-area">
+      <button class="react" (click)="clickOnLikeButton()">
+        @if (!isPostLike) {
+          <img src="../../../../assets/images/navbar/no-like-icon.svg" class="navbar-icon" />
+        } @else {
+          <img src="../../../../assets/images/navbar/like-icon.svg" class="navbar-icon" />
+        }
+      </button>
+
+      <button class="react" (click)="toggleComments()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.5 19H8C4 19 2 17 2 13V8C2 4 4 2 8 2H16C20 2 22 4 22 8V13C22 17 20 19 16 19H15.5C15.19 19 14.89 19.15 14.7 19.4L13.2 21.4C12.54 22.28 11.46 22.28 10.8 21.4L9.3 19.4C9.14 19.18 8.77 19 8.5 19Z" stroke="currentColor" stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        
+      </button>
+
+      <button
+        *ngIf="isReportable"
+        class="react ml-auto"
+        [disabled]="false"
+        (click)="openSendTipModel(postData?.creator?._id)"
+      >
+        <img src="../../../../assets/images/navbar/dollar-icon.svg" class="navbar-icon" />
+        send tip
+      </button>
+    </div>
+    <div class="like-count">
+      <span>{{ likesCount }} likes</span>
+      <span *ngIf="commentsCount > 0" class="comment-count">• {{ commentsCount }} comments</span>
+    </div>
+    
+    <!-- Comments Section -->
+    <div *ngIf="showComments" class="comments-section">
+      <!-- Add comment form -->
+      <div class="add-comment">
+        <div class="comment-input-container">
+          <textarea
+            [(ngModel)]="newComment"
+            placeholder="Add a comment..."
+            class="comment-input"
+            rows="2"
+            maxlength="500">
+          </textarea>
+          <button 
+            (click)="addComment()" 
+            [disabled]="!newComment.trim()"
+            class="btn btn-primary btn-sm comment-submit">
+            Post
+          </button>
+        </div>
+      </div>
+      
+      <!-- Comments list -->
+      <div class="comments-list">
+        @for (comment of comments; track comment._id) {
+          <div class="comment-item">
+            <div class="comment-header">
+              <img 
+                [src]="comment.user?.avatar || '../../../../assets/images/avatar.jpeg'" 
+                class="comment-avatar" 
+                alt="User avatar"
+              />
+              <div class="comment-user-info">
+                <span class="comment-username">{{ comment.user?.name || comment.user?.username || 'Unknown User' }}</span>
+                <span class="comment-time">{{ formatCommentDate(comment.createdAt) }}</span>
+              </div>
+              <button 
+                class="comment-like-btn" 
+                (click)="toggleCommentLike(comment._id)"
+                [class.liked]="comment.isLiked">
+                <img 
+                  [src]="comment.isLiked ? '../../../../assets/images/navbar/like-icon.svg' : '../../../../assets/images/navbar/no-like-icon.svg'" 
+                  class="comment-like-icon" 
+                />
+              </button>
+            </div>
+            <div class="comment-content">
+              <p>{{ comment.text }}</p>
+            </div>
+          </div>
+        } @empty {
+          <div class="no-comments">
+            <p>No comments yet. Be the first to comment!</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+<ng-template #imageTemplate let-imageUrl="imageUrl">
+  <img [src]="imageUrl" class="img-fluid rounded" alt="" />
+</ng-template>
+
+<ng-template #carouselTemplate let-data="data">
+  <div id="carouselExampleIndicators" class="carousel slide">
+    <div class="carousel-inner rounded">
+      @for (item of data; track $index) {
+        @if (getMediaType(item?.url) === 'image') {
+          <ng-container
+            *ngTemplateOutlet="imageTemplate; context: { imageUrl: item?.url }"
+          ></ng-container>
+        }
+        @if (getMediaType(item?.url) === 'video') {
+          <ng-container
+            *ngTemplateOutlet="videoTemplate; context: { videoUrl: item?.url }"
+          ></ng-container>
+        }
+      }
+    </div>
+    <button
+      class="carousel-control-prev"
+      type="button"
+      data-bs-target="#carouselExampleIndicators"
+      data-bs-slide="prev"
+    >
+      <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+      <span class="visually-hidden">Previous</span>
+    </button>
+    <button
+      class="carousel-control-next"
+      type="button"
+      data-bs-target="#carouselExampleIndicators"
+      data-bs-slide="next"
+    >
+      <span class="carousel-control-next-icon" aria-hidden="true"></span>
+      <span class="visually-hidden">Next</span>
+    </button>
+  </div>
+</ng-template>
+
+<ng-template #videoTemplate let-videoUrl="videoUrl">
+  <div class="ratio ratio-16x9">
+    <video
+      class="w-100 rounded shadow-lg"
+      controls
+      playsinline
+      muted
+      crossorigin
+      preload="metadata"
+    >
+      <source [src]="videoUrl" type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+  </div>
+</ng-template>
+
+<ng-template #lockedContent let-price="price" let-postId="postId" let-recipientId="recipientId">
+  <div class="locked-overlay">
+    <div class="content-box">
+      <div *ngIf="isSubscribed && !isFree" class="amount">
+        <span>${{ price }}</span>
+        <span
+          ><svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+            /></svg
+        ></span>
+      </div>
+      <button class="btn btn-primary" (click)="openPaymentPage(postId, recipientId)">
+        {{
+          !isSubscribed
+            ? "subscribe to see user's post"
+            : 'Locked content. Buy post to view contents'
+        }}
+      </button>
+    </div>
+  </div>
+</ng-template>

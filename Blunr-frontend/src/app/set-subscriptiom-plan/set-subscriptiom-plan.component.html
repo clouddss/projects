@@ -1,0 +1,70 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container">
+    <div class="chat-header">Set subscription plan</div>
+    <div class="chat-body">
+      <div class="fields">
+        <form [formGroup]="subscriptionForm" (ngSubmit)="onSubmit()">
+          <div class="form-custom">
+            <div class="row">
+              <div class="col-md-12 pb-3">
+                <div class="form-floating">
+                  <input
+                    min="0.01"
+                    step="0.01"
+                    type="number"
+                    class="form-control"
+                    formControlName="amount1"
+                    placeholder="Amount for 1 Month tenure"
+                  />
+                  <label>Enter Amount for 1 Month tenure</label>
+                </div>
+              </div>
+              <div class="col-md-12 pb-3">
+                <div class="form-floating">
+                  <input
+                    min="0.01"
+                    step="0.01"
+                    type="number"
+                    class="form-control"
+                    formControlName="amount3"
+                    placeholder="Amount for 3 Month tenure"
+                  />
+                  <label>Enter Amount for 3 Months tenure</label>
+                </div>
+              </div>
+              <div class="col-md-12 pb-3">
+                <div class="form-floating">
+                  <input
+                    min="0.01"
+                    step="0.01"
+                    type="number"
+                    class="form-control"
+                    formControlName="amount6"
+                    placeholder="Amount for 6 Month tenure"
+                  />
+                  <label>Enter Amount for 6 Months tenure</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-100">
+            <div class="d-flex justify-content-end w-100">
+              <button
+                type="submit"
+                class="btn btn-primary mw-230"
+                [disabled]="!subscriptionForm.valid || isSubmitting"
+              >
+                @if (isSubmitting) {
+                  <span class="spinner-border spinner-border-sm"></span>
+                }
+                Submit
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</app-home-page-area>

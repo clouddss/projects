@@ -1,0 +1,140 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container">
+    <div class="w-custom">
+      <div class="profile-container">
+        <div class="cover-photo">
+          <img id="coverImage" src="{{ this.currentUser.banner }}" alt="Cover" />
+        </div>
+
+        <div class="profile-picture">
+          <img id="profileImage" src="{{ this.currentUser.avatar }}" alt="Profile" />
+        </div>
+
+        <div class="profile-info pb-5">
+          <h1 id="name">{{ this.currentUser.name }}</h1>
+
+          <h5 id="username">{{ '@' }} {{ this.currentUser.username }}</h5>
+          <p id="bio">{{ this.currentUser.bio }}</p>
+        </div>
+      </div>
+
+      <div *ngIf="currentUser.isCreator">
+        <div class="subscription-bundle">
+          <div class="d-flex flex-column">
+            <h2 class="text-secondary">{{ (currentUser.subscriptionPrice['1_month'] === 0 && currentUser.subscriptionPrice['3_months'] === 0 && currentUser.subscriptionPrice['6_months'] === 0) ? 'FOLLOW THIS CREATOR' : 'SUBSCRIPTION PRICE' }}</h2>
+            <div *ngIf="subscriptionData && subscriptionData.expiresAt" class="text-primary-emphasis mb-3">
+              * Your Subscriptions with this creator expires on
+              <span class="text-danger">{{ formatDate(subscriptionData.expiresAt) }}</span>
+            </div>
+            <div *ngIf="subscriptionData && !subscriptionData.expiresAt" class="text-success mb-3">
+              * You are following this creator
+            </div>
+          </div>
+
+          <div class="d-flex flex-column">
+            <!-- Show only Follow button if all prices are 0 (free account) -->
+            <div *ngIf="currentUser.subscriptionPrice['1_month'] === 0 && currentUser.subscriptionPrice['3_months'] === 0 && currentUser.subscriptionPrice['6_months'] === 0">
+              <button
+                class="btn btn-primary d-flex justify-content-between"
+                (click)="openSubscriptionModal('1_month')"
+              >
+                <div>FOLLOW</div>
+                <div *ngIf="!isLoading" class="price">Free</div>
+                <div *ngIf="isLoading" class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+            </div>
+            
+            <!-- Show subscription options if any price is not 0 -->
+            <div *ngIf="currentUser.subscriptionPrice['1_month'] !== 0 || currentUser.subscriptionPrice['3_months'] !== 0 || currentUser.subscriptionPrice['6_months'] !== 0">
+              <button
+                class="btn btn-primary d-flex justify-content-between"
+                (click)="openSubscriptionModal('1_month')"
+              >
+                <div>{{ currentUser.subscriptionPrice['1_month'] === 0 ? 'FOLLOW' : '1 MONTH' }}</div>
+                <div *ngIf="!isLoading" class="price">
+                  {{ currentUser.subscriptionPrice['1_month'] === 0 ? 'Free' : '$' + currentUser.subscriptionPrice['1_month'] + ' Total' }}
+                </div>
+                <div *ngIf="isLoading" class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+              <button
+                class="btn btn-primary d-flex justify-content-between"
+                (click)="openSubscriptionModal('3_months')"
+              >
+                <div>3 MONTHS</div>
+                <div *ngIf="!isLoading" class="price">
+                  ${{ currentUser.subscriptionPrice['3_months'] }} Total
+                </div>
+                <div *ngIf="isLoading" class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+              <button
+                class="btn btn-primary d-flex justify-content-between"
+                (click)="openSubscriptionModal('6_months')"
+              >
+                <div>6 MONTHS</div>
+                <div *ngIf="!isLoading" class="price">
+                  ${{ currentUser.subscriptionPrice['6_months'] }} Total
+                </div>
+                <div *ngIf="isLoading" class="spinner-border" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- <app-subscription-bundle
+          [pricings]="this.currentUser.subscriptionPrices"
+          [toDisplay]="true"
+        ></app-subscription-bundle> -->
+      </div>
+
+      <div *ngIf="currentUser.isCreator" class="section-center">
+        <div class="tabs">
+          <div class="btn-container">
+            <button
+              class="button"
+              [class.live]="isActiveTab('step1')"
+              (click)="setActiveTab('step1')"
+            >
+              Post
+            </button>
+            <button
+              class="button"
+              [class.live]="isActiveTab('step2')"
+              (click)="setActiveTab('step2')"
+            >
+              Media
+            </button>
+          </div>
+          <div class="tabs-content">
+            <div class="content" [class.live]="isActiveTab('step1')" id="step1">
+              @for (item of currentUser?.myPosts; track $index) {
+                <app-post [postData]="item"></app-post>
+              } @empty {
+                <div>No Posts Yet....</div>
+              }
+            </div>
+
+            <div class="content" [class.live]="isActiveTab('step2')" id="step">
+              @for (item of currentUser?.myMedia[0]; track $index) {
+                <lightgallery [settings]="settings" [onBeforeSlide]="onBeforeSlide">
+                  <a class="gallery-item" [attr.data-src]="item.url">
+                    <img class="img-responsive" [src]="item.url" alt="" />
+                  </a>
+                </lightgallery>
+              } @empty {
+                <div>No Media Yet....</div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</app-home-page-area>

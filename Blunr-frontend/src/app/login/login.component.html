@@ -1,0 +1,77 @@
+<section class="section">
+  <div class="two-half">
+    <div class="left">
+      <div class="logo-content">
+        <h1><img src="../../assets/images/Blunr_Logo_Final-05.png" class="img-fluid" alt="" /></h1>
+        <h2>Sign in to support your favorite creators</h2>
+      </div>
+      <img src="../../assets/images/Blunr_Logo_Final-02.png" class="logo-overlay" alt="" />
+    </div>
+    <div class="right">
+      <form [formGroup]="loginForm" class="form">
+        <h3>Log in</h3>
+        <div class="form-floating mb-3">
+          <input
+            type="email"
+            class="form-control"
+            id="floatingInput"
+            placeholder="name@example.com"
+            formControlName="email"
+          />
+          <label for="floatingInput">Email address</label>
+          <div class="errorMsg" *ngIf="isInvalid('email')">
+            <span *ngIf="loginForm.get('email')?.hasError('required')">Email is required</span>
+            <span *ngIf="loginForm.get('email')?.hasError('email')">Invalid email format</span>
+          </div>
+        </div>
+        <div class="form-floating mb-3">
+          <input
+            type="password"
+            class="form-control"
+            id="floatingPassword"
+            placeholder="Password"
+            formControlName="password"
+          />
+          <label for="floatingPassword">Password</label>
+          <div class="errorMsg" *ngIf="isInvalid('password')">
+            <span *ngIf="loginForm.get('password')?.hasError('required')"
+              >Password is required</span
+            >
+            <span *ngIf="loginForm.get('password')?.hasError('minlength')"
+              >Must be at least 6 characters</span
+            >
+          </div>
+        </div>
+        <div class="form-check mb-3">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="stayLoggedIn"
+            formControlName="stayLoggedIn"
+          >
+          <label class="form-check-label" for="stayLoggedIn">
+            Remember me?
+          </label>
+        </div>
+        <button type="button" (click)="login()" class="btn btn-primary mb-3" [disabled]="isLoading">
+          @if (isLoading) {
+            <span class="spinner-border spinner-border-sm"></span>
+          }
+          log in
+        </button>
+        <div class="b-loginreg__form__issues mb-3">
+          By logging in and using Blunr, you agree to our
+          <a [routerLink]="routes.TERMS_AND_CONDITIONS">Terms of Service</a> and <a
+            [routerLink]="routes.PRIVACY_POLICY">Privacy Policy</a>, and confirm that you
+          are at least 18 years old.
+        </div>
+        <div class="btn-flex mb-3">
+          <button type="button" (click)="openForgetPasswordModel()">Forgot password?</button>
+        </div>
+        <div class="btn-flex mb-0">
+          <button type="button" [routerLink]="routes.SIGNUP">Sign up for Blunr</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

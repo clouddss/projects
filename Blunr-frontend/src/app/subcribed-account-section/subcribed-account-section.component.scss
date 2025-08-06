@@ -1,0 +1,20 @@
+.card-subscribed {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    width: 100%;
+    padding: 30px;
+
+    app-subcribed-account {
+        width: 100%;
+    }
+}
+
+.suggestions-section-title {
+    color: #8a96a3;
+    font-size: 25px;
+    margin: 0;
+    letter-spacing: 0;
+    line-height: 1.2;
+    padding-left: 2rem;
+  }

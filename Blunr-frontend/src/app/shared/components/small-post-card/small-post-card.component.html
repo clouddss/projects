@@ -1,0 +1,30 @@
+<div (click)="redirectToProfile()" role="button" class="profile-recommended">
+  <div [style.backgroundImage]="'url(' + this.banner + ')'" class="friend-card card">
+    <div role="button" class="profile" style="overflow: hidden">
+      <img src="{{ avatar }}" class="img-fluid h-auto w-100" alt="" />
+    </div>
+    <div
+      class="profile bg-transparent border-0"
+      style="overflow: visible; box-shadow: none; height: 0; position: relative; top: -2px"
+    >
+      <div class="online"></div>
+    </div>
+    <div class="friend__content">
+      <div class="g-user-name m-verified">
+        {{ name }}
+        <img
+          src="../../../../assets/images/navbar/verify-white-icon.svg"
+          class="navbar-icon navbar-icon-inline"
+          alt="verify"
+        />
+      </div>
+      <div class="g-user-username">
+        <img
+          src="../../../../assets/images/navbar/at-white-icon.svg"
+          class="navbar-icon navbar-icon-inline"
+        />
+        {{ username }}
+      </div>
+    </div>
+  </div>
+</div>

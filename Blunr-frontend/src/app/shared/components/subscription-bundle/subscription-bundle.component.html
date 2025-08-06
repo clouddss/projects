@@ -1,0 +1,37 @@
+<div class="subscription-bundle">
+  <div class="d-flex">
+    <h2 class="text-secondary">SUBSCRIPTION PRICE</h2>
+  </div>
+  <div class="d-flex flex-column">
+    <button
+      class="btn d-flex justify-content-between"
+      [class.btn-primary]="toDisplay"
+      [class.btn-secondary]="!toDisplay"
+      [disabled]="!toDisplay"
+      (click)="toDisplay ? openSubscriptionModal(subscriptions['1_month'].toString(), '1_month') : null"
+    >
+      <div>1 MONTH</div>
+      <div class="price">${{ subscriptions['1_month'] }} Total</div>
+    </button>
+    <button
+      class="btn d-flex justify-content-between"
+      [class.btn-primary]="toDisplay"
+      [class.btn-secondary]="!toDisplay"
+      [disabled]="!toDisplay"
+      (click)="toDisplay ? openSubscriptionModal(subscriptions['3_months'].toString(), '3_months') : null"
+    >
+      <div>3 MONTHS</div>
+      <div class="price">${{ subscriptions['3_months'] }} Total</div>
+    </button>
+    <button
+      class="btn d-flex justify-content-between"
+      [class.btn-primary]="toDisplay"
+      [class.btn-secondary]="!toDisplay"
+      [disabled]="!toDisplay"
+      (click)="toDisplay ? openSubscriptionModal(subscriptions['6_months'].toString(), '6_months') : null"
+    >
+      <div>6 MONTHS</div>
+      <div class="price">${{ subscriptions['6_months'] }} Total</div>
+    </button>
+  </div>
+</div>

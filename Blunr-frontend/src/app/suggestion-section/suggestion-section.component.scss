@@ -1,0 +1,14 @@
+.suggestions {
+    display: flex;
+    width: 100% !important;
+    flex-direction: column;
+    gap: 16px;
+
+    .suggestions-section-title {
+        color: #8a96a3;
+        font-size: 16px;
+        margin: 0;
+        letter-spacing: 0;
+        line-height: 1.2;
+    }
+}

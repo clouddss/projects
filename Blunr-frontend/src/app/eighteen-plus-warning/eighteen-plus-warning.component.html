@@ -1,0 +1,28 @@
+@if (!isDeniedConsent) {
+<div class="modal-body popup-verification">
+    <img src="../../assets/images/Blunr_Logo_Final-main.png" class="img-fluid" style="max-width: 100px" alt="" />
+    <h4>This is an Adult website</h4>
+    <p>
+        This website contains age-restricted materials including nudity and explicit depictions of sexual activity. By
+        entering, you affirm that you are at least 18 years of age or the age of majority in the jurisdiction you are
+        accessing the website from and you consent to viewing sexually explicit content.
+    </p>
+    <div class="d-grid gap-2 d-md-flex w-100">
+        <button type="submit" class="btn btn-secondary" (click)="exitSite()">
+            I am under 18 - Exit
+        </button>
+        <button type="submit" class="btn btn-primary" (click)="confirmAge()">
+            I am 18 or older - Enter
+        </button>
+    </div>
+</div>
+}
+
+@if (isDeniedConsent) {
+<div class="modal-body popup-verification">
+    <h4>Adults Only</h4>
+    <p>
+        This website is only intended for users over the age of 18.
+    </p>
+</div>
+}

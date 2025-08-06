@@ -1,0 +1,127 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container">
+    <app-home-page-header-area></app-home-page-header-area>
+
+    <div class="new-post-area">
+      <div class="new-post-container">
+        <div class="new-post-section">
+          <div class="head-post">New Post</div>
+          <div class="body-post">
+            <form [formGroup]="postForm" (ngSubmit)="onSubmit()">
+              <div class="account-name flex-column align-items-start">
+                <div class="d-flex justify-content-between w-100">
+                  <label for="imageUpload">Add Media</label>
+                  <label for="imageUpload" style="opacity: 0.4">Max media size: 500 MB</label>
+                </div>
+                <div class="img-container">
+                  <div class="upload-img rounded">
+                    <input
+                      accept="image/* , video/*"
+                      type="file"
+                      id="imageUpload"
+                      formControlName="image"
+                      (change)="onFileChange($event)"
+                    />
+                    <img
+                      alt="plus-icon"
+                      src="../../assets/images/navbar/add-icon.svg"
+                      class="navbar-icon-inline"
+                      style="width: 28px !important; height: 28px !important; border: 0"
+                    />
+                  </div>
+                  <!-- Display preview of uploaded images -->
+                  <div class="image-previews mt-0 d-flex flex-wrap gap-2">
+                    @for (img of imagePreviews; track $index) {
+                      <img
+                        [src]="img"
+                        alt="preview"
+                        class="img-fluid rounded"
+                        style="max-width: 100px; max-height: 100px"
+                      />
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="account-name flex-column align-items-start">
+                <div class="d-flex justify-content-between w-100">
+                  <label for="imageUpload">Caption</label>
+                </div>
+                <textarea
+                  class="form-control"
+                  placeholder="Enter a caption here"
+                  id="floatingTextarea2"
+                  rows="3"
+                  formControlName="caption"
+                ></textarea>
+                <div *ngIf="caption?.invalid && caption?.touched" class="text-danger mt-1">
+                  <span *ngIf="caption?.errors?.['required'] ?? false">Caption is required</span>
+                  <span *ngIf="caption?.errors?.['minlength'] ?? false"
+                    >Caption must be at least 5 characters</span
+                  >
+                </div>
+              </div>
+
+              <div class="account-name flex-column align-items-start">
+                <label for="floatingTextarea2">Content Type</label>
+                <div class="d-flex align-item-center" style="gap: 40px">
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="contentType"
+                      id="free"
+                      formControlName="contentType"
+                      value="free"
+                    />
+                    <label class="form-check-label" for="flexRadioDefault1"> Free </label>
+                  </div>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="contentType"
+                      id="paid"
+                      formControlName="contentType"
+                      value="paid"
+                    />
+                    <label class="form-check-label" for="flexRadioDefault2"> Paid </label>
+                  </div>
+                </div>
+              </div>
+
+              @if (postForm.get('contentType')?.value === 'paid') {
+                <div class="form-floating mb-3">
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="floatingInput"
+                    placeholder="name@example.com"
+                    formControlName="amount"
+                    min="0.01"
+                    step="0.01"
+                  />
+                  <label for="floatingInput">Enter amount</label>
+                </div>
+              }
+
+              <div class="actions">
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  [disabled]="postForm.invalid || isSubmitting"
+                >
+                  @if (isSubmitting) {
+                    <span class="spinner-border spinner-border-sm"></span>
+                  }
+                  Create Post
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</app-home-page-area>

@@ -1,0 +1,42 @@
+.profile-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
+
+  .profile-opt {
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    border-radius: 46px;
+    border: 0;
+    background-color: #e5e5e5;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    color: #232342;
+  }
+
+  .nams-username {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+    align-items: flex-start;
+
+    span.username {
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1;
+      color: #484848;
+
+      img {
+        max-width: 16px;
+        padding: 0;
+        width: 100%;
+        height: 16px;
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+<div class="ofcanvas-content">
+  <div class="ofcanvas-content-header">
+    <a
+      class="nav-link"
+      [routerLink]="routes.PROFILE"
+      routerLinkActive="active"
+      (click)="closeSidebar()"
+      class="offcanvas-link"
+      href="/profile"
+    >
+      <div class="profile-opt">
+        <img
+          src="{{ currentUser.avatar || '../../../../assets/images/avatar.jpeg' }}"
+          class="w-100 h-auto profile-opt"
+          alt="user avatar"
+        />
+      </div>
+    </a>
+    <button type="button" class="btn-close" aria-label="Close" (click)="closeSidebar()"></button>
+  </div>
+  <div class="ofcanvas-content-body">
+    <div
+      class="nams-username d-flex justify-content-start align-items-center w-100 flex-row"
+      style="gap: 10px; padding: 14px; background: #ebebeb; border-radius: 8px 8px 0 0"
+    >
+      {{ currentUser.name || '' }}
+      <span class="username"> {{ '@' + currentUser.username }}</span>
+    </div>
+
+    <br />
+
+    <ul class="setting-sidebar">
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          [routerLink]="routes.PROFILE"
+          routerLinkActive="active"
+          (click)="closeSidebar()"
+        >
+          <img src="../../assets/images/navbar/profile-icon.svg" alt="" />
+          <div>Profile</div>
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a
+          class="nav-link"
+          [routerLink]="routes.SUBSCRIBED_ACCOUNT"
+          routerLinkActive="active"
+          (click)="closeSidebar()"
+        >
+          <img src="../../assets/images/navbar/subscription-icon.svg" alt="" />
+          <div>Your Subscription</div>
+        </a>
+      </li>
+
+      <li class="nav-item">
+        <a 
+          class="nav-link"
+          [routerLink]="routes.YOUR_TRANSACTIONS"
+          routerLinkActive="active"
+          (click)="closeSidebar()"
+        >
+          <img src="../../assets/images/navbar/transaction.svg" alt="" />
+          <div>Your Transaction</div>
+        </a>
+      </li>
+
+      <li *ngIf="isCreator" class="nav-item">
+        <a
+          class="nav-link"
+          [routerLink]="routes.SET_SUBSCRIPTION_PLAN"
+          routerLinkActive="active"
+          (click)="closeSidebar()"
+        >
+          <img src="../../assets/images/navbar/plan-icon.svg" alt="" />
+          <div>Set Subscription Plan</div>
+        </a>
+      </li>
+
+      <li
+        *ngIf="isCreator"
+        class="nav-item"
+      >
+        <a 
+          class="nav-link"
+          [routerLink]="routes.RAISE_WITHDRWAL_REQUEST"
+          routerLinkActive="active"
+          (click)="closeSidebar()"
+        >
+          <img src="../../assets/images/navbar/raise-withdrawl.svg" alt="" />
+          <div>Raise Withdrawl Request</div>
+        </a>
+      </li>
+
+      <li
+        *ngIf="isCreator"
+        class="nav-item"
+      >
+        <a 
+          class="nav-link"
+          [routerLink]="routes.CONTACT_SUPPORT"
+          routerLinkActive="active"
+          (click)="closeSidebar()"
+        >
+          <img src="../../assets/images/navbar/contact-us.svg" alt="" />
+          <div>Contact Support</div>
+        </a>
+      </li>
+
+      <li class="nav-item" (click)="logout()">
+        <a class="nav-link">
+          <img src="../../assets/images/navbar/logout-icon.svg" alt="" />
+          <div>Logout</div>
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>

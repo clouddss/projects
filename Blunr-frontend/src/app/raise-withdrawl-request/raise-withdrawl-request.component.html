@@ -1,0 +1,76 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container">
+    <div class="chat-header">Raise Withdrawal Request</div>
+    <div class="chat-body">
+      <form [formGroup]="withdrawForm" (ngSubmit)="onSubmit()" class="w-100">
+        <div class="row-100">
+          <div class="total-amount">
+            <label for="total-amount">Total available balance</label>
+            <div class="balance">${{ walletBalance }}</div>
+          </div>
+
+          <div class="col-100">
+            <div class="w-100">
+              <div class="form-floating">
+                <input
+                  type="number"
+                  class="form-control"
+                  id="withdrawAmount"
+                  placeholder="Enter amount"
+                  formControlName="amount"
+                  min="0"
+                  [max]="walletBalance"
+                />
+                <label for="withdrawAmount">Withdrawable Amount</label>
+              </div>
+            </div>
+
+            <div class="w-100">
+              <div class="form-floating">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="note"
+                  placeholder="Add a note (optional)"
+                  formControlName="note"
+                />
+                <label for="note">Note</label>
+              </div>
+            </div>
+            <div class="w-100">
+              <div class="form-floating">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="address"
+                  placeholder="Add Your USDT ERC20 Address"
+                  formControlName="cryptoAddress"
+                />
+                <label for="address">USDT ERC20 Address</label>
+              </div>
+            </div>
+
+            <div class="w-100">
+              <div class="d-flex justify-content-end w-100">
+                <button
+                  type="submit"
+                  class="btn btn-primary mw-230"
+                  [disabled]="withdrawForm.invalid || isSubmitting"
+                >
+                @if (isSubmitting) {
+                  <span class="spinner-border spinner-border-sm"></span>
+                }
+                  Submit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+    @if (loadTable) {
+      <app-my-withdrawls-table></app-my-withdrawls-table>
+    }
+  </div>
+</app-home-page-area>

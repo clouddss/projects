@@ -1,0 +1,107 @@
+<div class="modal-header">
+  <h5 class="modal-title">Confirm Your Payment</h5>
+  <button type="button" class="btn-close" (click)="closePaymentModel()"></button>
+</div>
+
+<div class="modal-body payment-body">
+  <!-- @if for Bundle Subscription Information -->
+  @if (type === subscriptionType.BUNDLE) {
+    <div class="payment-username">
+      <!-- <div class="payment-area-header">
+        <div class="profile-post">
+          <img
+            alt=""
+            class="img-fluid"
+            src="https://res.cloudinary.com/dqj6nsund/image/upload/v1741000278/ntq2a63mhudcsaxefuh4.jpg"
+          />
+        </div>
+        <div class="profile-content">
+          <div class="g-user-name m-verified">
+            Sophiya Boobeshi
+            <img src="../../../../assets/images/navbar/verify-icon.svg" class="navbar-icon" />
+          </div>
+          <div class="g-user-username">
+            <img src="../../../../assets/images/navbar/at-icon.svg" class="navbar-icon" /> creator_1
+          </div>
+        </div>
+      </div> -->
+      <h6 style="color: #000">After subscription you get these benefits:</h6>
+      <ul style="color: #353535; font-size: 14px">
+        <li>Full access to this user's content</li>
+        <li>Direct message with this user</li>
+      </ul>
+    </div>
+  }
+
+  <!-- Subscription Form -->
+  <form [formGroup]="paymentForm" (ngSubmit)="payNow()">
+    <div class="form-floating mb-3">
+      <input
+        min="0.01"
+        step="0.01"
+        type="number"
+        class="form-control"
+        id="subscriptionAmount"
+        formControlName="amount"
+        placeholder="Subscription Amount"
+      />
+      <label for="subscriptionAmount">
+        @switch (type) {
+          @case (subscriptionType.TIP) {
+            Tip Amount
+          }
+          @case (subscriptionType.BUNDLE) {
+            Subscription Amount
+          }
+          @default {
+            Amount
+          }
+        }
+      </label>
+      @if (paymentForm.get('amount')?.invalid && paymentForm.get('amount')?.touched) {
+        <div class="text-danger">Amount is required and must be greater than 0</div>
+      }
+    </div>
+
+    <!-- @if for TIP Subscription -->
+    @if (type === subscriptionType.TIP) {
+      <div class="form-floating">
+        <textarea
+          class="form-control"
+          formControlName="note"
+          placeholder="Leave a comment here"
+          id="floatingTextarea2"
+          style="height: 100px"
+        ></textarea>
+        <label for="floatingTextarea2">Note</label>
+        @if (paymentForm.get('note')?.invalid && paymentForm.get('note')?.touched) {
+          <div class="text-danger">Note must be at least 5 characters long</div>
+        }
+      </div>
+    }
+
+    <div class="form-floating mb-3">
+      <select class="form-select" id="gatewaySelect" formControlName="gateway">
+        <option value="card">Card</option>
+        <option value="coinbase">Coinbase</option>
+        <option value="nowpayments">NowPayments</option>
+        <!-- <option value="cryptomus">Cryptomus</option> -->
+      </select>
+      <label for="gatewaySelect">Payment Gateway</label>
+    </div>
+  </form>
+</div>
+<div class="text-danger text-start" style="margin-left: 14px">
+  Note : * Complete the payment in other tab
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" (click)="closePaymentModel()">Cancel</button>
+  <button
+    type="submit"
+    class="btn btn-primary"
+    [disabled]="paymentForm.invalid || isLoading"
+    (click)="payNow()"
+  >
+    {{ isLoading ? 'Sending...' : 'Pay Now' }}
+  </button>
+</div>

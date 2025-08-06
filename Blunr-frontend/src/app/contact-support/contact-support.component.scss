@@ -1,0 +1,88 @@
+$primary-color: #000074;
+$background-color: #f9f9f9;
+$text-color: #333;
+
+h2 {
+  margin-bottom: 1rem;
+}
+
+.contact-container {
+  width: 100%;
+  padding: 20px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  overflow-y: auto;
+}
+
+header h1 {
+  color: $primary-color;
+}
+
+.contact-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px; // Added for better spacing
+
+  .info-item {
+    flex: 1;
+    padding: 15px;
+    min-width: 200px;
+    font-size: 1.5rem; // Increased font size
+
+    p {
+      font-size: 1.2rem; // Increased font size for better readability
+    }
+  }
+
+  h2 {
+    color: $primary-color;
+  }
+}
+
+.email-container {
+  // display: flex;
+  // align-items: center;
+  gap: 12px;
+
+  p {
+    font-size: 1.2rem;
+    color: $text-color;
+    margin: 0;
+  }
+
+  .copy-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    // display: flex;
+    // align-items: center;
+    // justify-content: center;
+    transition: transform 0.2s ease-in-out;
+
+    .clipboard-icon {
+      width: 24px;
+      height: 24px;
+      fill: $primary-color;
+      transition: fill 0.3s ease-in-out;
+      font-size: 1.2rem;
+    }
+
+    &:hover .clipboard-icon {
+      fill: darken(red, 10%);
+    }
+
+    &:active {
+      transform: scale(0.9);
+    }
+  }
+}
+
+.map iframe {
+  width: 100%;
+  height: 300px;
+  border-radius: 10px;
+  margin: 20px 0;
+}

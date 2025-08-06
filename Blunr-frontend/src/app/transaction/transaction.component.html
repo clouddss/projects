@@ -1,0 +1,38 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container flex-row">
+    <div class="chat-list transcation">
+      <div class="total-balance">
+        Total earning: <b>${{ walletBalance }}</b>
+      </div>
+      @if (transactions?.length > 0) {
+        <div class="chat-body">
+          @for (transaction of transactions; track $index) {
+            <div class="chat-tile">
+              <div class="chat-link">
+                <!-- <div class="profile-opt profile-main"><svg xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24" fill="green" class="size-6">
+                                        <path fill-rule="evenodd"
+                                            d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z"
+                                            clip-rule="evenodd" />
+                                    </svg>
+                                </div> -->
+                <div class="two-flex w-60">
+                  <div class="nams-username d-flex">{{ transaction.user?.username }}</div>
+                  <div class="date">{{ transaction.createdAt | date }}</div>
+                  <div class="last-msg">{{ transaction.type }}</div>
+                </div>
+                <div class="two-flex w-40">
+                  <div class="status {{ transaction.status }}">{{ transaction.status }}</div>
+                  <div class="transaction-amount">${{ transaction.amount }}</div>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <app-empty-data [message]="'No Transaction Found.'"></app-empty-data>
+      }
+    </div>
+  </div>
+</app-home-page-area>

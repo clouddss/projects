@@ -1,0 +1,10 @@
+<div class="suggestions">
+  <app-search></app-search>
+  <h2 class="suggestions-section-title">{{ isSearced }}</h2>
+
+  @for (item of topCreators; track $index) {
+    <app-small-post-card [creatorData]="item"></app-small-post-card>
+  } @empty {
+    <h2>No results found...</h2>
+  }
+</div>

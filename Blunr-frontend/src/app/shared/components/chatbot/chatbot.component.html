@@ -1,0 +1,213 @@
+<div class="chat-list chatbot">
+  <div class="chat-header">
+    <button type="button" class="bg-transparent border-0" (click)="goChatBack()">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        style="width: 26px"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z"
+          clip-rule="evenodd"
+        />
+      </svg>
+    </button>
+    <div class="profile-opt pointer-class" (click)="redirectToProfile(currentRecieverUsername)">
+      <img class="h-auto w-100 profile-opt" alt="" src="{{ currentRecieverAvatar }}" />
+    </div>
+    <span class="pointer-class" (click)="redirectToProfile(currentRecieverUsername)">
+      {{ currentReceiver }} <span class="chat-status"> {{ '@' + currentRecieverUsername }} </span>
+    </span>
+  </div>
+
+  <div class="msger-chat" #scrollable>
+    @for (item of messages; track $index) {
+      @if (item.sender._id === currentUser) {
+        <div class="msg right-msg">
+          <div
+            class="msg-img profile-opt"
+            style="background-image: url(https://image.flaticon.com/icons/svg/145/145867.svg)"
+          >
+            <img
+              src="{{ currentUserAvatar }}"
+              alt="current user avatar"
+              class="profile-opt h-auto w-100"
+            />
+          </div>
+
+          <div class="msg-bubble">
+            <div class="msg-info">
+              <div class="msg-info-name">{{ item.sender.username }}</div>
+              <div class="msg-info-time">{{ formatDate(item.createdAt) }}</div>
+            </div>
+
+            <div class="msg-text">{{ item.text }}</div>
+
+            @if (item.media.length > 0) {
+              @if (item?.isLocked) {
+                <div class="locked-media">
+                  <button
+                    class="btn btn-primary"
+                    (click)="unlockedMedia(item.price, item?._id, item.receiver)"
+                  >
+                    Unlock for ${{ item.price }}
+                  </button>
+                </div>
+              } @else {
+                <ng-container *ngIf="isVideo(item?.media[0]?.url); else imageTemplate">
+                  <!-- Video Element -->
+                  <video width="200" height="120" controls>
+                    <source [src]="item?.media[0]?.url" type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                </ng-container>
+
+                <!-- LightGallery for Images -->
+                <ng-template #imageTemplate>
+                  <lightgallery [settings]="settings" [onBeforeSlide]="onBeforeSlide">
+                    <a class="gallery-item" [attr.data-src]="item?.media[0]?.url">
+                      <img class="img-responsive" [src]="item?.media[0]?.url" alt="send img" />
+                    </a>
+                  </lightgallery>
+                </ng-template>
+              }
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="msg left-msg">
+          <div
+            class="msg-img profile-opt"
+            style="background-image: url(https://image.flaticon.com/icons/svg/145/145867.svg)"
+          >
+            <img
+              src="{{ currentRecieverAvatar }}"
+              alt="current user avatar"
+              class="profile-opt h-auto w-100"
+            />
+          </div>
+
+          <div class="msg-bubble">
+            <div class="msg-info">
+              <div class="msg-info-name">{{ item.sender.username }} </div>
+              <div class="msg-info-time">{{ formatDate(item.createdAt) }}</div>
+            </div>
+
+            <div class="msg-text">
+              {{ item.text }}
+            </div>
+            @if (item?.media?.length > 0) {
+              @if (item?.isLocked) {
+                <div class="locked-media">
+                  <button
+                    class="btn btn-primary"
+                    (click)="unlockedMedia(item.price, item?._id, item.receiver)"
+                  >
+                    Unlock for ${{ item.price }}
+                  </button>
+                </div>
+              } @else {
+                <ng-container *ngIf="isVideo(item?.media[0]?.url); else imageTemplate">
+                  <!-- Video Element -->
+                  <video width="200" height="120" controls>
+                    <source [src]="item?.media[0]?.url" type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                </ng-container>
+
+                <!-- LightGallery for Images -->
+                <ng-template #imageTemplate>
+                  <lightgallery [settings]="settings" [onBeforeSlide]="onBeforeSlide">
+                    <a class="gallery-item" [attr.data-src]="item?.media[0]?.url">
+                      <img class="img-responsive" [src]="item?.media[0]?.url" alt="send img" />
+                    </a>
+                  </lightgallery>
+                </ng-template>
+              }
+            }
+          </div>
+        </div>
+      }
+    } @empty {
+      <div class="no-reords">
+        <h4 class="text-secondary text-center">Let's Start The Chat....</h4>
+      </div>
+    }
+  </div>
+
+  <form class="msger-inputarea" (submit)="onSubmit($event)">
+    <textarea
+      rows="2"
+      class="form-control"
+      placeholder="Enter your text"
+      [(ngModel)]="messageText"
+      [ngModelOptions]="{ standalone: true }"
+      name="messageText"
+      id="floatingTextarea2"
+      (click)="saveCursorPosition($event)"
+      (keyup)="saveCursorPosition($event)"
+      (keydown)="onKeyDown($event)"
+    ></textarea>
+    <div class="emoji-bar">
+      @for (emoji of emojis; track $index) {
+        <span (click)="insertEmoji(emoji)" class="emoji">
+          {{ emoji }}
+        </span>
+      }
+    </div>
+    <div class="controls">
+      <!-- Upload Button -->
+      <button type="button">
+        <input type="file" (change)="onFileSelected($event)" #fileInput />
+        <img alt="file icon" src="../../../../assets/images/navbar/image-icon.svg" />
+      </button>
+
+      <!-- Image Preview -->
+      <div class="preview-container" *ngIf="selectedPreview">
+        <img src="{{ selectedPreview }}" alt="selected image preview" />
+      </div>
+
+      <!-- Dollar Button (For Users Only) -->
+      <button *ngIf="isUser" type="button" (click)="openSendTipModel()">
+        <img alt="dollar icon" src="../../../../assets/images/navbar/dollar-icon.svg" />
+      </button>
+
+      <!-- Amount Input (If Message is Locked) -->
+      <div *ngIf="!isUser" class="form-floating">
+        <input
+          min="0.01"
+          step="0.01"
+          type="number"
+          id="price"
+          [(ngModel)]="messagePrice"
+          [ngModelOptions]="{ standalone: true }"
+          placeholder="$ Free"
+          class="form-control"
+        />
+        <label>Enter Message price</label>
+      </div>
+
+      <!-- Send Button -->
+      <button type="submit" class="btn btn-primary send-button">
+        <svg
+          *ngIf="!isLoading"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="white" />
+        </svg>
+
+        <div *ngIf="isLoading" class="text-center ps-2 pt-1">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </button>
+    </div>
+  </form>
+</div>

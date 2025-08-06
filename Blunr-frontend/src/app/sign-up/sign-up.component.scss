@@ -1,0 +1,48 @@
+.errorMsg {
+  color: red;
+  font-size: 14px;
+}
+
+.custom-select {
+  appearance: none;
+  border-radius: 8px;
+  padding: 10px 15px;
+  font-size: 16px;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  width: 100%;
+}
+
+/* Add a dropdown arrow */
+.custom-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233498db'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+
+/* Hover and focus effects */
+.custom-select:hover {
+  border-color: #2980b9;
+}
+
+.custom-select:focus {
+  border-color: #2980b9;
+  box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
+}
+
+/* Style the options */
+.custom-select option {
+  background-color: #fff;
+  color: #333;
+  font-size: 16px;
+  padding: 10px;
+}
+
+/* Highlight selected option */
+.custom-select option:checked {
+  background-color: #3498db;
+  color: white;
+}

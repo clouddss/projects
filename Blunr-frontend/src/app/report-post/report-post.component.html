@@ -1,0 +1,37 @@
+<div class="modal-header">
+  <h5 class="modal-title">Report Post</h5>
+  <button type="button" class="btn-close" (click)="closeModal()"></button>
+</div>
+<div class="modal-body">
+  <div class="profile-link mb-3">
+    <div class="profile-opt">
+      <img
+        class="h-auto w-100 profile-opt"
+        alt="reported post creator avatar"
+        src="{{ creatorProfile }}"
+      />
+    </div>
+    <div class="nams-username">
+      {{ this.creatorName }}
+      <span class="username">
+        <img src="../../../../assets/images/navbar/at-icon.svg" class="navbar-icon" alt="icon" />
+        {{ this.creatorUsername }}
+      </span>
+    </div>
+  </div>
+  <form>
+    <div class="form-floating mb-3">
+      <textarea
+        class="form-control"
+        id="reportReason"
+        placeholder="Enter report reason"
+        (input)="onReportReasonChange($event)"
+      ></textarea>
+      <!-- <label for="reportReason">Reason for reporting</label> -->
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+  <button type="button" class="btn btn-primary" (click)="submitReport()">Submit Report</button>
+</div>

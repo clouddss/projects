@@ -1,0 +1,25 @@
+h4 {
+    color: #000 !important;
+}
+
+button {
+    text-transform: none;
+}
+
+.modal-body.popup-verification {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    align-items: center;
+    text-align: center;
+
+    h4, p{
+        margin: 0 !important;
+        color: #000;
+    }
+
+    .d-grid.gap-2.d-md-flex.w-100{
+        gap: 16px !important;
+    }
+}

@@ -1,0 +1,101 @@
+
+
+.nams-username.d-flex {
+    width: 100%;
+    flex-direction: row;
+    gap: 8px;
+    color: #000;
+    align-items: center;
+    line-height: 1;
+}
+
+.home-container.flex-row{
+    @media (max-width:1024px) {
+        padding-bottom: 67px;
+
+        app-chatbot{
+            display: none;
+        }
+
+        &.open-msg{
+            app-chatbot{
+                display: block;
+            }
+
+            .chat-list {
+                display: none;
+            }
+        }
+    }
+}
+
+.chat-list.no-chat {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+    align-items: center;
+
+    p {
+        font-size: 40px;
+        opacity: 0.2;
+    }
+}
+
+// Unread message indicators
+.profile-opt {
+    position: relative;
+}
+
+.unread-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #ff4757;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 50%;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.unread-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #ff4757;
+    border-radius: 50%;
+    margin-top: 4px;
+    animation: pulse 2s infinite;
+}
+
+.unread-text {
+    font-weight: bold !important;
+    color: #000 !important;
+}
+
+.chat-time-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

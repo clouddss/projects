@@ -1,0 +1,13 @@
+<div class="search-box form-control">
+  <input
+  (keydown.enter)="onSearchSubmit()"
+  (keyup.enter)="onSearchSubmit()"
+    (change)="onSearchChange($event)"
+    type="text"
+    class="form-control"
+    placeholder="Search by username..."
+  />
+  <button (click)="onSearchSubmit()">
+    <img src="../../../../assets/images/navbar/search-icon.svg" class="navbar-icon" />
+  </button>
+</div>

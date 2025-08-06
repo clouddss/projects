@@ -1,0 +1,18 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="64"
+  height="64"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <!-- Phone Icon -->
+  <path d="M22 16.92V19a2 2 0 0 1-2.18 2 19.88 19.88 0 0 1-8.63-2.94A19.88 19.88 0 0 1 2 6.18 2 2 0 0 1 4 4h2.08a2 2 0 0 1 2 1.72 12.4 12.4 0 0 0 .54 2.94 2 2 0 0 1-.45 2l-1.27 1.27a16 16 0 0 0 6.85 6.85l1.27-1.27a2 2 0 0 1 2-.45 12.4 12.4 0 0 0 2.94.54 2 2 0 0 1 1.72 2Z"/>
+  
+  <!-- Email Icon -->
+  <rect x="16" y="2" width="6" height="6" rx="1" ry="1"/>
+  <path d="M16 2l3 3 3-3"/>
+</svg>

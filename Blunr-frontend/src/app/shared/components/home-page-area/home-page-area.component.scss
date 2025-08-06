@@ -1,0 +1,17 @@
+.home-flex {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    height: 100%;
+
+    @media (max-width:1024px) {
+        display: block;
+        height: auto;
+    }
+
+    app-suggestion-section{
+        display: block;
+        width: 100%;
+        max-width: 380px;
+    }
+}

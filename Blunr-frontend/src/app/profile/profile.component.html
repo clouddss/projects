@@ -1,0 +1,123 @@
+<app-home-page-area>
+  <app-home-sidebar></app-home-sidebar>
+  <div class="home-container">
+    <div class="w-custom">
+      <div class="profile-container">
+        <div class="cover-photo">
+          <img id="coverImage" [src]="currentUser.banner" alt="Cover" />
+          <div *ngIf="!paramUsername" class="edit-cover" (click)="openCoverEditor()">
+            ✎ Edit Cover
+          </div>
+          <input
+            type="file"
+            #coverInput
+            (change)="onFileSelected($event, 'banner')"
+            hidden
+            accept="image/*"
+          />
+        </div>
+
+        <div class="profile-picture">
+          <img id="profileImage" [src]="currentUser.avatar" alt="Profile" />
+          <div *ngIf="!paramUsername" class="edit-profile" (click)="openProfileEditor()">✎</div>
+          <input
+            type="file"
+            #profileInput
+            (change)="onFileSelected($event, 'avatar')"
+            hidden
+            accept="image/*"
+          />
+        </div>
+
+        <div class="profile-info">
+          <h1 id="name" [ngClass]="{ 'd-block': !isNameEditable, 'd-none': isNameEditable }">
+            {{ currentUser.name }}
+            <span *ngIf="!paramUsername" class="edit-username" (click)="editUsername()">✎</span>
+          </h1>
+          <span [ngClass]="{ 'd-block': isNameEditable, 'd-none': !isNameEditable }">
+            <input class="unstyled-input" #nameInput type="text" value="{{ currentUser.name }}" />
+            <span role="button" class="h2" (click)="submitUsername()">✔</span>
+          </span>
+          <h5 id="username">
+            {{ '@' + currentUser.username }}
+          </h5>
+          <p id="bio" [ngClass]="{ 'd-block': !isBioEditable, 'd-none': isBioEditable }">
+            {{ currentUser.bio }}
+            <span
+              *ngIf="!paramUsername"
+              class="edit-bio h2"
+              (click)="editBio()"
+              style="font-size: 18px"
+              >✎</span
+            >
+          </p>
+          <span [ngClass]="{ 'd-block': isBioEditable, 'd-none': !isBioEditable }">
+            <textarea class="unstyled-input" #bioInput type="text"></textarea>
+
+            <span class="h2" style="cursor: pointer" (click)="submitBio()">✔</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Show subscription pricing when viewing a creator's profile and not subscribed -->
+      <div *ngIf="!!paramUsername && currentUser.role === 'creator' && !isSubscribed && currentUser._id">
+        <app-subscription-bundle 
+          [toDisplay]="true" 
+          [pricings]="currentUser.subscriptionPrice"
+          [creatorId]="currentUser._id">
+        </app-subscription-bundle>
+      </div>
+      
+      <!-- Show subscription status if already subscribed -->
+      <div *ngIf="!!paramUsername && currentUser.role === 'creator' && isSubscribed" class="subscription-status mt-3">
+        <div class="alert alert-success text-center">
+          <h5>✅ You are subscribed to {{ currentUser.name }}</h5>
+          <p>You have access to all their content</p>
+        </div>
+      </div>
+
+      <div *ngIf="isCreator" class="section-center">
+        <div class="tabs">
+          <div class="btn-container">
+            <button
+              class="button"
+              [class.live]="isActiveTab('step1')"
+              (click)="setActiveTab('step1')"
+            >
+              Post
+            </button>
+            <button
+              class="button"
+              [class.live]="isActiveTab('step2')"
+              (click)="setActiveTab('step2')"
+            >
+              Media
+            </button>
+          </div>
+          <div class="tabs-content">
+            <div class="content" [class.live]="isActiveTab('step1')" id="step1">
+              @for (item of myPosts; track $index) {
+                <app-post [postData]="item" [userSubscriptionStatus]="isSubscribed"></app-post>
+              } @empty {
+                <div>No Posts Yet....</div>
+              }
+            </div>
+            <div class="content" [class.live]="isActiveTab('step2')" id="step2">
+              <div class="lightgallery">
+                @for (item of galleryData; track $index) {
+                  <lightgallery [settings]="settings" [onBeforeSlide]="onBeforeSlide">
+                    <a class="gallery-item" [attr.data-src]="item.url">
+                      <img class="img-responsive" [src]="item.url" />
+                    </a>
+                  </lightgallery>
+                } @empty {
+                  <div>No Media Yet....</div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</app-home-page-area>

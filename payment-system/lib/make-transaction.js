@@ -180,23 +180,24 @@ async function main() {
 
   // Check if we should run in headed mode for CAPTCHA solving
   const headlessMode = process.env.HEADLESS === "false" ? false : "new";
-
   const { page, browser } = await connect({
     headless: false,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      `--enable-gpu`,
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
       "--disable-blink-features=AutomationControlled",
       "--disable-features=site-per-process",
-      `--single-process`,
+      "--single-process",
     ],
-    disableXvfb: false,
+    disableXvfb: false, // Let the library handle Xvfb
     defaultViewport: null,
     ignoreDefaultArgs: ["--enable-automation"],
+    // Add these options for better Xvfb handling:
+    xvfbArgs: ["-screen", "0", "1024x768x24", "-ac"],
   });
-
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
   );

@@ -217,11 +217,36 @@ async function solveCaptchaIfNeeded(page) {
           console.log(
             `CAPTCHA solver found with selector: ${selector}, attempting to solve... (attempt ${captchaAttempts}/${MAX_CAPTCHA_ATTEMPTS})`,
           );
-          await page.evaluate(() => {
-            document
-              .querySelector("div.button-holder.help-button-holder")
-              .click();
-          });
+          
+          try {
+            // Try different clicking methods
+            console.log("Attempting to click solver button...");
+            
+            // Method 1: Direct click on the element
+            await helpButton.click();
+            console.log("Method 1: Direct click executed");
+            
+            // Give it a moment to register
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            
+            // Method 2: If direct click didn't work, try evaluating in frame context
+            const clickResult = await captchaFrame.evaluate((sel) => {
+              const button = document.querySelector(sel);
+              if (button) {
+                button.click();
+                return true;
+              }
+              return false;
+            }, selector);
+            
+            if (clickResult) {
+              console.log("Method 2: Frame evaluate click executed");
+            }
+            
+          } catch (clickError) {
+            console.log("Error clicking solver button:", clickError.message);
+          }
+          
           console.log("CAPTCHA solver clicked, waiting for resolution...");
 
           // Wait and check if CAPTCHA was actually solved

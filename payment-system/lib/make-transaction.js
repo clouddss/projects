@@ -81,15 +81,15 @@ async function waitForPaybisIframe(page, retries = 20, delay = 3000) {
 async function solveCaptchaIfNeeded(page) {
   try {
     console.log("Checking for CAPTCHA...");
-    
+
     // Check for different types of reCAPTCHA iframes
     const captchaSelectors = [
       'iframe[title*="recaptcha"]',
       'iframe[title*="reCAPTCHA"]',
       'iframe[src*="google.com/recaptcha"]',
-      'iframe[src*="recaptcha.net"]'
+      'iframe[src*="recaptcha.net"]',
     ];
-    
+
     let captchaDetected = false;
     for (const selector of captchaSelectors) {
       try {
@@ -103,39 +103,46 @@ async function solveCaptchaIfNeeded(page) {
         // Continue checking other selectors
       }
     }
-    
+
     if (!captchaDetected) {
       console.log("No CAPTCHA iframe found");
       return false;
     }
-    
-    console.log("CAPTCHA detected! NopeCHA extension should handle it automatically.");
-    
+
+    console.log(
+      "CAPTCHA detected! NopeCHA extension should handle it automatically.",
+    );
+
     // Wait for NopeCHA to solve the CAPTCHA automatically
     console.log("Waiting for NopeCHA to solve the CAPTCHA...");
-    
+
     // Wait for the CAPTCHA to be solved (check for success token or iframe disappearance)
     try {
       await page.waitForFunction(
         () => {
           // Check if reCAPTCHA response textarea has a value (indicates solved)
-          const responseTextarea = document.querySelector('textarea[name="g-recaptcha-response"]');
+          const responseTextarea = document.querySelector(
+            'textarea[name="g-recaptcha-response"]',
+          );
           if (responseTextarea && responseTextarea.value) {
             return true;
           }
-          
+
           // Check if CAPTCHA iframe is gone
-          const captchaFrames = Array.from(document.querySelectorAll('iframe')).filter(iframe => 
-            iframe.src.includes('recaptcha') || 
-            iframe.title?.includes('recaptcha') ||
-            iframe.title?.includes('reCAPTCHA')
+          const captchaFrames = Array.from(
+            document.querySelectorAll("iframe"),
+          ).filter(
+            (iframe) =>
+              iframe.src.includes("recaptcha") ||
+              iframe.title?.includes("recaptcha") ||
+              iframe.title?.includes("reCAPTCHA"),
           );
-          
+
           return captchaFrames.length === 0;
         },
-        { timeout: 30000 } // Wait up to 30 seconds for NopeCHA to solve
+        { timeout: 30000 }, // Wait up to 30 seconds for NopeCHA to solve
       );
-      
+
       console.log("CAPTCHA solved by NopeCHA!");
       return true;
     } catch (error) {
@@ -169,22 +176,22 @@ async function main() {
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
   const extensionPath = path.join(process.cwd(), "chromium");
-  
+
   // Check if we should run in headed mode for CAPTCHA solving
-  const headlessMode = process.env.HEADLESS === 'false' ? false : 'new';
-  
+  const headlessMode = process.env.HEADLESS === "false" ? false : "new";
+
   const browser = await puppeteerExtra.launch({
-    headless: headlessMode,
+    headless: false,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
       `--enable-gpu`,
       "--disable-blink-features=AutomationControlled",
-      "--disable-features=site-per-process"
+      "--disable-features=site-per-process",
     ],
     defaultViewport: null,
-    ignoreDefaultArgs: ["--enable-automation"]
+    ignoreDefaultArgs: ["--enable-automation"],
   });
   const page = await browser.newPage();
 
@@ -450,51 +457,64 @@ async function main() {
     }
 
     // Check if CAPTCHA is blocking the password field
-    console.log("Checking if CAPTCHA needs to be solved before password field...");
+    console.log(
+      "Checking if CAPTCHA needs to be solved before password field...",
+    );
     const captchaPresent = await page.evaluate(() => {
-      const iframes = Array.from(document.querySelectorAll('iframe'));
-      return iframes.some(iframe => 
-        iframe.src.includes('recaptcha') || 
-        iframe.title?.includes('recaptcha') ||
-        iframe.title?.includes('reCAPTCHA')
+      const iframes = Array.from(document.querySelectorAll("iframe"));
+      return iframes.some(
+        (iframe) =>
+          iframe.src.includes("recaptcha") ||
+          iframe.title?.includes("recaptcha") ||
+          iframe.title?.includes("reCAPTCHA"),
       );
     });
 
     if (captchaPresent) {
-      console.log("CAPTCHA detected! Waiting for manual solve or Buster extension...");
-      
+      console.log(
+        "CAPTCHA detected! Waiting for manual solve or Buster extension...",
+      );
+
       // Give user time to solve CAPTCHA manually or wait for Buster
-      console.log("Please solve the CAPTCHA manually if Buster extension doesn't work.");
+      console.log(
+        "Please solve the CAPTCHA manually if Buster extension doesn't work.",
+      );
       console.log("Waiting up to 60 seconds for CAPTCHA to be solved...");
-      
+
       // Wait for CAPTCHA to disappear or password field to appear
       try {
         await page.waitForFunction(
           () => {
             // Check if password field is now available
-            const passwordField = document.querySelector('#password-input') || 
-                                document.querySelector('input[name="password"]') || 
-                                document.querySelector('input[type="password"]');
-            
+            const passwordField =
+              document.querySelector("#password-input") ||
+              document.querySelector('input[name="password"]') ||
+              document.querySelector('input[type="password"]');
+
             // Check if CAPTCHA is gone
-            const captchaFrames = Array.from(document.querySelectorAll('iframe')).filter(iframe => 
-              iframe.src.includes('recaptcha') || 
-              iframe.title?.includes('recaptcha') ||
-              iframe.title?.includes('reCAPTCHA')
+            const captchaFrames = Array.from(
+              document.querySelectorAll("iframe"),
+            ).filter(
+              (iframe) =>
+                iframe.src.includes("recaptcha") ||
+                iframe.title?.includes("recaptcha") ||
+                iframe.title?.includes("reCAPTCHA"),
             );
-            
+
             // Return true if password field exists or CAPTCHA is gone
             return passwordField || captchaFrames.length === 0;
           },
-          { timeout: 60000 } // Wait up to 60 seconds
+          { timeout: 60000 }, // Wait up to 60 seconds
         );
-        
+
         console.log("CAPTCHA solved or password field appeared!");
-        
+
         // Small delay to ensure page has stabilized
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       } catch (error) {
-        console.log("Timeout waiting for CAPTCHA to be solved. Continuing anyway...");
+        console.log(
+          "Timeout waiting for CAPTCHA to be solved. Continuing anyway...",
+        );
       }
     }
 

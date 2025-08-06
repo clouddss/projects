@@ -102,9 +102,32 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
       if (!sitekey) {
         const scripts = Array.from(document.scripts);
         for (const script of scripts) {
-          const match = script.innerHTML.match(/sitekey['"]\s*:\s*['"]([^'"]+)['"]/);
-          if (match) {
-            sitekey = match[1];
+          // Look for various sitekey patterns
+          const patterns = [
+            /sitekey['"]\s*:\s*['"]([^'"]+)['"]/,
+            /recaptcha_v3_key['"]\s*:\s*['"]([^'"]+)['"]/,
+            /data-sitekey['"]\s*:\s*['"]([^'"]+)['"]/,
+            /"k":["']([^"']+)["']/
+          ];
+          
+          for (const pattern of patterns) {
+            const match = script.innerHTML.match(pattern);
+            if (match) {
+              sitekey = match[1];
+              break;
+            }
+          }
+          if (sitekey) break;
+        }
+      }
+      
+      // Check for sitekey in iframe URLs
+      if (!sitekey) {
+        const iframes = Array.from(document.querySelectorAll('iframe[src*="recaptcha"]'));
+        for (const iframe of iframes) {
+          const urlMatch = iframe.src.match(/[?&]k=([^&]+)/);
+          if (urlMatch) {
+            sitekey = urlMatch[1];
             break;
           }
         }
@@ -122,19 +145,39 @@ async function solveCaptchaWith2Captcha(page, captchaSolver) {
 
     // Check for reCAPTCHA v3
     const recaptchaV3 = await page.evaluate(() => {
+      let sitekey = null;
+      
+      // Check for v3 script with render parameter
       const scripts = Array.from(document.scripts);
       const v3Script = scripts.find(script => 
         script.src.includes('recaptcha') && script.src.includes('render')
       );
       if (v3Script) {
         const url = new URL(v3Script.src);
-        return {
-          exists: true,
-          sitekey: url.searchParams.get('render'),
-          type: 'recaptcha_v3'
-        };
+        sitekey = url.searchParams.get('render');
       }
-      return { exists: false };
+      
+      // Check for recaptcha_v3_key in JavaScript variables
+      if (!sitekey) {
+        for (const script of scripts) {
+          const match = script.innerHTML.match(/recaptcha_v3_key['"]\s*:\s*['"]([^'"]+)['"]/);
+          if (match) {
+            sitekey = match[1];
+            break;
+          }
+        }
+      }
+      
+      // Check for window.recaptchaV3SiteKey or similar
+      if (!sitekey && window.recaptchaV3SiteKey) {
+        sitekey = window.recaptchaV3SiteKey;
+      }
+      
+      return {
+        exists: !!sitekey || !!v3Script,
+        sitekey: sitekey,
+        type: 'recaptcha_v3'
+      };
     });
 
     // Check for hCaptcha

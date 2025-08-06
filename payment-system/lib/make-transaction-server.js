@@ -156,6 +156,19 @@ async function main() {
   });
 
   const page = await browser.newPage();
+  
+  // Add this after browser launch to check extension status
+  console.log('Checking for NopeCHA extension...');
+  const extensionTargets = await browser.targets();
+  const extensionTarget = extensionTargets.find(target => 
+    target.url().includes('chrome-extension') && target.url().includes('nopecha')
+  );
+
+  if (extensionTarget) {
+    console.log('NopeCHA extension found:', extensionTarget.url());
+  } else {
+    console.log('NopeCHA extension not found');
+  }
 
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",

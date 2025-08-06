@@ -795,20 +795,19 @@ async function main() {
               document.querySelector('input[name="password"]') ||
               document.querySelector('input[type="password"]');
 
-            // Check if CAPTCHA is gone
-            const captchaFrames = Array.from(
-              document.querySelectorAll("iframe"),
-            ).filter(
-              (iframe) =>
-                iframe.src.includes("recaptcha") ||
-                iframe.title?.includes("recaptcha") ||
-                iframe.title?.includes("reCAPTCHA"),
-            );
+            // Check if CAPTCHA challenge is completed
+            const activeChallenge = document.querySelector('.rc-imageselect-instructions') ||
+              document.querySelector('.rc-image-tile-wrapper') ||
+              document.querySelector('iframe[src*="bframe"]');
 
-            // Return true if password field exists or CAPTCHA is gone
-            return passwordField || captchaFrames.length === 0;
+            // Check if reCAPTCHA response is filled
+            const captchaResponse = document.querySelector('textarea[name="g-recaptcha-response"]');
+            const hasSolution = captchaResponse && captchaResponse.value && captchaResponse.value.length > 0;
+
+            // Return true if password field exists, no active challenge, or we have a solution
+            return passwordField || !activeChallenge || hasSolution;
           },
-          { timeout: 60000 }, // Wait up to 60 seconds
+          { timeout: 180000 }, // Wait up to 3 minutes for complex challenges
         );
 
         console.log("CAPTCHA solved or password field appeared!");
@@ -823,6 +822,34 @@ async function main() {
     }
 
     console.log("Entering password...");
+    
+    // First check if CAPTCHA is still being solved
+    const captchaStillActive = await page.evaluate(() => {
+      const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
+      const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper');
+      const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
+      return challengeFrames.length > 0 || challengeImages.length > 0 || challengeInstructions;
+    });
+    
+    if (captchaStillActive) {
+      console.log("🔄 CAPTCHA still active, waiting for it to complete before looking for password field...");
+      try {
+        await page.waitForFunction(
+          () => {
+            const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
+            const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper');
+            const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
+            return challengeFrames.length === 0 && challengeImages.length === 0 && !challengeInstructions;
+          },
+          { timeout: 120000 } // 2 minutes for CAPTCHA to complete
+        );
+        console.log("✅ CAPTCHA challenge completed, now looking for password field");
+        // Small delay for page to stabilize
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.log("⏰ CAPTCHA challenge timeout, proceeding anyway...");
+      }
+    }
 
     // Try multiple selectors and longer timeout
     const passwordSelectors = [

@@ -4,7 +4,7 @@ class TwoCaptchaSolver {
   constructor(apiKey) {
     this.apiKey = "6bff1751082ccdcb34c1a1ea93581e9e";
     this.baseUrl = "http://2captcha.com";
-    this.maxAttempts = 120; // 10 minutes max wait time
+    this.maxAttempts = 180; // 15 minutes max wait time for complex challenges
     this.pollInterval = 5000; // 5 seconds
   }
 

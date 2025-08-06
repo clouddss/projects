@@ -589,6 +589,35 @@ async function main() {
       // Check for CAPTCHA before proceeding
       await solveCaptchaWith2Captcha(frame, captchaSolver);
 
+      // Wait for any active CAPTCHA challenges to complete before looking for password field
+      console.log("🔍 Checking if CAPTCHA challenge is still active...");
+      const captchaStillActive = await frame.evaluate(() => {
+        const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
+        const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper, .rc-image-tile-44');
+        const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
+        return challengeFrames.length > 0 || challengeImages.length > 0 || !!challengeInstructions;
+      });
+
+      if (captchaStillActive) {
+        console.log("🔄 CAPTCHA still active, waiting for it to complete before looking for password field...");
+        try {
+          await frame.waitForFunction(
+            () => {
+              const challengeFrames = document.querySelectorAll('iframe[src*="bframe"]');
+              const challengeImages = document.querySelectorAll('.rc-imageselect-target, .rc-image-tile-wrapper, .rc-image-tile-44');
+              const challengeInstructions = document.querySelector('.rc-imageselect-instructions');
+              return challengeFrames.length === 0 && challengeImages.length === 0 && !challengeInstructions;
+            },
+            { timeout: 180000, polling: 2000 } // 3 minutes with 2-second polling
+          );
+          console.log("✅ CAPTCHA challenge completed, proceeding to password field");
+        } catch (error) {
+          console.log("⏰ CAPTCHA challenge timeout, proceeding anyway...");
+        }
+      } else {
+        console.log("✅ No active CAPTCHA challenge detected");
+      }
+
       console.log("Entering password...");
       await frame.waitForSelector('input[type="password"]', {
         visible: true,

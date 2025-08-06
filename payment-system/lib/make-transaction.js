@@ -217,7 +217,11 @@ async function solveCaptchaIfNeeded(page) {
           console.log(
             `CAPTCHA solver found with selector: ${selector}, attempting to solve... (attempt ${captchaAttempts}/${MAX_CAPTCHA_ATTEMPTS})`,
           );
-          await helpButton.click();
+          await page.evaluate(() => {
+            document
+              .querySelector("div.button-holder.help-button-holder")
+              .click();
+          });
           console.log("CAPTCHA solver clicked, waiting for resolution...");
 
           // Wait and check if CAPTCHA was actually solved

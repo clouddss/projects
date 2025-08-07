@@ -1485,12 +1485,17 @@ async function main() {
            url.includes("/deposit-success") ||
            url.includes("/completed") ||
            url.includes("payment_status=completed") ||
-           url.includes("status=success")) &&
+           url.includes("status=success") ||
+           // Switchere payment completion pattern (only if response indicates success)
+           (url.includes("switchere.com/onramp/o/") && response.status() === 200 && !url.includes("initiate"))) &&
           !url.includes("3ds") && // Exclude 3DS-related URLs
           !url.includes("auth"); // Exclude auth-related URLs
           
         // For continue-transaction API calls, check the actual response content
         const isContinueTransactionSuccess = url.includes("continue-transaction") && response.status() === 200;
+        
+        // For PayBis transaction status API, we need to check the response body
+        const isPayBisTransactionCheck = url.includes("api.paybis.com/public/transaction/v2/") && response.status() === 200;
         
         if (isFinalPaymentSuccess) {
           console.log("🎯 FINAL PAYMENT SUCCESS DETECTED IN NETWORK RESPONSE!");
@@ -1512,6 +1517,54 @@ async function main() {
           
           // We'll check the response content in a separate handler
           // This is just logging for now
+        } else if (isPayBisTransactionCheck) {
+          // Log PayBis transaction status check for analysis
+          console.log("🔍 PAYBIS TRANSACTION STATUS CHECK DETECTED");
+          console.log("📞 PayBis API URL:", url);
+          console.log("📡 Response status:", response.status());
+          
+          // Try to read response body to check payment status
+          response.text().then(responseBody => {
+            try {
+              const payBisData = JSON.parse(responseBody);
+              console.log("📊 PayBis response data:", JSON.stringify(payBisData, null, 2));
+              
+              if (payBisData.payment && payBisData.payment.status === "complete" && 
+                  !payBisData.payment.is_refused && !payBisData.payment.is_error) {
+                console.log("🎯 PAYBIS PAYMENT STATUS: COMPLETE - Final payment success confirmed!");
+                
+                // Set network success detected
+                networkSuccessDetected = true;
+                networkSuccessDetails = {
+                  url: url,
+                  status: response.status(),
+                  timestamp: new Date().toISOString(),
+                  type: "final_payment_success",
+                  provider: "paybis",
+                  paymentStatus: payBisData.payment.status,
+                  invoiceStatus: payBisData.status
+                };
+              } else {
+                console.log("⚠️ PayBis payment not yet complete:", {
+                  paymentStatus: payBisData.payment?.status,
+                  invoiceStatus: payBisData.status,
+                  isRefused: payBisData.payment?.is_refused,
+                  isError: payBisData.payment?.is_error
+                });
+              }
+            } catch (e) {
+              console.log("⚠️ Could not parse PayBis response JSON:", e.message);
+            }
+          }).catch(e => {
+            console.log("⚠️ Could not read PayBis response body:", e.message);
+          });
+        } else if (url.includes("switchere.com/onramp/o/")) {
+          // Log Switchere payment calls for analysis
+          console.log("🔍 SWITCHERE PAYMENT CALL DETECTED");
+          console.log("📞 Switchere URL:", url);
+          console.log("📡 Response status:", response.status());
+          console.log("🔄 Request method:", response.request().method());
+          console.log("⚠️ Analyzing if this indicates final payment completion...");
         } else if (url.includes("param=Y") || url.includes("transStatus=Y")) {
           // Log 3DS success but don't treat it as final payment success
           console.log("ℹ️ 3DS AUTHENTICATION SUCCESS DETECTED (not final payment)");
@@ -1678,6 +1731,40 @@ async function main() {
     );
     console.log("Full result object:", JSON.stringify(resultJson, null, 2));
 
+    // Check for error toast in the main page (appears after BankID completes)
+    console.log("🔍 Checking for payment error toasts after BankID completion...");
+    try {
+      const hasPostBankIdErrorToast = await outerFrame.evaluate(() => {
+        // Check for PayBis error toast that appears after BankID
+        const errorToast = document.querySelector('.widget-content-toast--error');
+        if (errorToast) {
+          const toastText = errorToast.textContent.toLowerCase();
+          console.log("🚨 Post-BankID error toast detected:", toastText);
+          return toastText.includes("declined") || 
+                 toastText.includes("contact your bank") ||
+                 toastText.includes("payment has been declined");
+        }
+        
+        // Also check for other error indicators that appear after BankID
+        const pageText = document.body.textContent.toLowerCase();
+        return pageText.includes("the payment has been declined") ||
+               pageText.includes("please contact your bank") ||
+               pageText.includes("betalningen har avvisats");
+      }).catch(() => false);
+
+      if (hasPostBankIdErrorToast) {
+        console.log("🚨 ERROR TOAST DETECTED: Payment was declined by bank after BankID success");
+        console.log("❌ Overriding any success status - payment failed due to bank decline");
+        resultJson = { 
+          success: false, 
+          error: "Payment declined by bank after BankID authentication",
+          source: "post_bankid_error_toast"
+        };
+      }
+    } catch (e) {
+      console.log("⚠️ Could not check for post-BankID error toasts:", e.message);
+    }
+
     // Additional success check - only override failure if we have explicit success indicators
     if (!resultJson.success) {
       console.log(
@@ -1723,6 +1810,8 @@ async function main() {
           (currentUrl.includes("transaction-success") && !currentUrl.includes("3ds")) ||
           (currentUrl.includes("deposit-success") && !currentUrl.includes("3ds")) ||
           (currentUrl.includes("success") && currentUrl.includes("final")) ||
+          // Switchere completion URL pattern
+          (currentUrl.includes("switchere.com/onramp/o/") && !currentUrl.includes("3ds")) ||
           // Additional specific success indicators
           pageContent.includes("your payment has been processed") ||
           pageContent.includes("payment confirmation") ||
@@ -1737,10 +1826,37 @@ async function main() {
           pageContent.includes("avbruten") ||
           pageContent.includes("misslyckad") ||
           pageContent.includes("fel") ||
-          pageContent.includes("tiden är löpt ut");
+          pageContent.includes("tiden är löpt ut") ||
+          // Specific PayBis/Widget error messages
+          pageContent.includes("the payment has been declined") ||
+          pageContent.includes("please contact your bank") ||
+          pageContent.includes("payment declined") ||
+          pageContent.includes("betalningen har avvisats") ||
+          pageContent.includes("kontakta din bank");
+
+        // Also check for specific error UI elements in the DOM
+        let hasErrorToast = false;
+        try {
+          hasErrorToast = await outerFrame.evaluate(() => {
+            // Check for PayBis error toast
+            const errorToast = document.querySelector('.widget-content-toast--error');
+            if (errorToast) {
+              const toastText = errorToast.textContent.toLowerCase();
+              console.log("🚨 Error toast detected:", toastText);
+              return toastText.includes("declined") || 
+                     toastText.includes("contact your bank") ||
+                     toastText.includes("payment has been declined");
+            }
+            return false;
+          }).catch(() => false);
+        } catch (e) {
+          // Ignore evaluation errors
+        }
+        
+        const totalFailureIndicators = hasFailureIndicators || hasErrorToast;
 
         // Final verification - ONLY accept very specific success indicators
-        if (hasSuccessIndicators && !hasFailureIndicators) {
+        if (hasSuccessIndicators && !totalFailureIndicators) {
           console.log(
             "✅ FINAL PAYMENT SUCCESS indicators found in page content, overriding BankID timeout status",
           );
@@ -1748,7 +1864,7 @@ async function main() {
             success: true,
             source: "final_payment_confirmation"
           };
-        } else if (networkSuccessDetected && networkSuccessDetails?.type === "final_payment_success" && !hasFailureIndicators) {
+        } else if (networkSuccessDetected && networkSuccessDetails?.type === "final_payment_success" && !totalFailureIndicators) {
           console.log(
             "✅ FINAL PAYMENT SUCCESS detected via network monitoring, overriding BankID timeout status",
           );
@@ -1757,8 +1873,11 @@ async function main() {
             success: true,
             source: "network_final_payment"
           };
-        } else if (hasFailureIndicators) {
+        } else if (totalFailureIndicators) {
           console.log("❌ Failure indicators confirmed, payment failed");
+          if (hasErrorToast) {
+            console.log("🚨 Specific error toast detected - payment declined by bank");
+          }
         } else {
           console.log(
             "⚠️ No clear success indicators found, maintaining failed status",

@@ -566,6 +566,7 @@ async function main() {
       // Wait for page to fully load
 
       // Additional wait for dynamic content
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Take a debug screenshot
       await page.screenshot({

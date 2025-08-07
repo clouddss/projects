@@ -1477,16 +1477,23 @@ async function main() {
     page.on("response", (response) => {
       const url = response.url();
       try {
-        // Monitor for success indicators in URLs or responses
-        if (
-          url.includes("param=Y") ||
-          url.includes("param=y") ||
-          url.includes("transStatus=Y") ||
-          url.includes("transStatus=y") ||
-          url.includes("success") ||
-          url.includes("complete")
-        ) {
-          console.log("🎯 SUCCESS INDICATOR DETECTED IN NETWORK RESPONSE!");
+        // Monitor for FINAL payment success indicators (not just 3DS auth success)
+        // Only consider URLs that indicate final payment completion
+        const isFinalPaymentSuccess = 
+          (url.includes("/payment-success") || 
+           url.includes("/transaction-success") ||
+           url.includes("/deposit-success") ||
+           url.includes("/completed") ||
+           url.includes("payment_status=completed") ||
+           url.includes("status=success")) &&
+          !url.includes("3ds") && // Exclude 3DS-related URLs
+          !url.includes("auth"); // Exclude auth-related URLs
+          
+        // For continue-transaction API calls, check the actual response content
+        const isContinueTransactionSuccess = url.includes("continue-transaction") && response.status() === 200;
+        
+        if (isFinalPaymentSuccess) {
+          console.log("🎯 FINAL PAYMENT SUCCESS DETECTED IN NETWORK RESPONSE!");
           console.log("🌐 Success URL:", url);
           console.log("📡 Response status:", response.status());
           
@@ -1495,7 +1502,21 @@ async function main() {
             url: url,
             status: response.status(),
             timestamp: new Date().toISOString(),
+            type: "final_payment_success"
           };
+        } else if (isContinueTransactionSuccess) {
+          // For continue-transaction calls, we need to examine the response body
+          console.log("🔍 CONTINUE-TRANSACTION API CALL DETECTED");
+          console.log("📞 API URL:", url);
+          console.log("📡 Response status:", response.status());
+          
+          // We'll check the response content in a separate handler
+          // This is just logging for now
+        } else if (url.includes("param=Y") || url.includes("transStatus=Y")) {
+          // Log 3DS success but don't treat it as final payment success
+          console.log("ℹ️ 3DS AUTHENTICATION SUCCESS DETECTED (not final payment)");
+          console.log("🔐 3DS Auth URL:", url);
+          console.log("⚠️ This is NOT final payment success - waiting for payment completion...");
         }
       } catch (error) {
         // Ignore errors in response monitoring
@@ -1529,10 +1550,15 @@ async function main() {
           console.log("🔍 IFRAME CLOSURE DETECTED - This often indicates BankID success!");
           console.log("✅ Iframe closed unexpectedly, checking for network success indicators...");
           
-          if (networkSuccessDetected) {
-            console.log("🎯 Network success was detected, treating iframe closure as success!");
-            console.log("📊 Network success details:", JSON.stringify(networkSuccessDetails, null, 2));
+          if (networkSuccessDetected && networkSuccessDetails?.type === "final_payment_success") {
+            console.log("🎯 FINAL payment success was detected, treating iframe closure as success!");
+            console.log("📊 Final payment success details:", JSON.stringify(networkSuccessDetails, null, 2));
             return { success: true, source: "network_and_iframe_closure" };
+          } else if (networkSuccessDetected) {
+            console.log("⚠️ Only 3DS auth success detected, not final payment success");
+            console.log("🔍 Iframe closure with 3DS success does not guarantee payment success");
+            console.log("📊 Network details:", JSON.stringify(networkSuccessDetails, null, 2));
+            // Don't return success - continue with normal timeout handling
           }
         }
         
@@ -1678,27 +1704,29 @@ async function main() {
           .catch(() => "");
         console.log("Page content preview:", pageContent.substring(0, 500));
 
-        // Enhanced success detection for various patterns
+        // Enhanced success detection - STRICT criteria to avoid false positives
+        // Only consider FINAL payment success indicators, not just 3DS auth success
         const hasSuccessIndicators =
-          pageContent.includes("success") ||
-          pageContent.includes("completed") ||
-          pageContent.includes("confirmed") ||
-          pageContent.includes("framgång") ||
-          pageContent.includes("slutförd") ||
-          pageContent.includes("bekräftad") ||
-          currentUrl.includes("success") ||
-          currentUrl.includes("complete") ||
-          currentUrl.includes("confirmed") ||
-          // Network response success patterns (from BankID callbacks)
-          currentUrl.includes("param=y") ||
-          currentUrl.includes("param=Y") ||
-          currentUrl.includes("transStatus=Y") ||
-          currentUrl.includes("transStatus=y") ||
-          pageContent.includes("transstatus") && pageContent.includes("y") ||
-          pageContent.includes("param") && pageContent.includes("y") ||
-          // Additional BankID success patterns
-          pageContent.includes("signatur mottagen") ||
-          pageContent.includes("signature received");
+          // FINAL payment success in page content (very specific terms)
+          pageContent.includes("payment successful") ||
+          pageContent.includes("transaction successful") ||
+          pageContent.includes("payment completed") ||
+          pageContent.includes("transaction completed") ||
+          pageContent.includes("purchase successful") ||
+          pageContent.includes("deposit successful") ||
+          // Swedish equivalents for final payment success
+          pageContent.includes("betalning slutförd") ||
+          pageContent.includes("transaktion slutförd") ||
+          pageContent.includes("köp slutfört") ||
+          // URL-based FINAL success indicators (excluding 3DS auth)
+          (currentUrl.includes("payment-success") && !currentUrl.includes("3ds")) ||
+          (currentUrl.includes("transaction-success") && !currentUrl.includes("3ds")) ||
+          (currentUrl.includes("deposit-success") && !currentUrl.includes("3ds")) ||
+          (currentUrl.includes("success") && currentUrl.includes("final")) ||
+          // Additional specific success indicators
+          pageContent.includes("your payment has been processed") ||
+          pageContent.includes("payment confirmation") ||
+          pageContent.includes("transaction confirmation");
 
         // Check for failure indicators
         const hasFailureIndicators =
@@ -1711,22 +1739,23 @@ async function main() {
           pageContent.includes("fel") ||
           pageContent.includes("tiden är löpt ut");
 
-        // Also consider network success detection in final verification
-        if ((hasSuccessIndicators || networkSuccessDetected) && !hasFailureIndicators) {
-          if (hasSuccessIndicators) {
-            console.log(
-              "✅ Explicit success indicators found in page content, overriding BankID timeout status",
-            );
-          }
-          if (networkSuccessDetected) {
-            console.log(
-              "✅ Network success indicators found, overriding BankID timeout status",
-            );
-            console.log("📊 Network success details:", JSON.stringify(networkSuccessDetails, null, 2));
-          }
+        // Final verification - ONLY accept very specific success indicators
+        if (hasSuccessIndicators && !hasFailureIndicators) {
+          console.log(
+            "✅ FINAL PAYMENT SUCCESS indicators found in page content, overriding BankID timeout status",
+          );
           resultJson = { 
             success: true,
-            source: hasSuccessIndicators ? "page_content" : "network_response"
+            source: "final_payment_confirmation"
+          };
+        } else if (networkSuccessDetected && networkSuccessDetails?.type === "final_payment_success" && !hasFailureIndicators) {
+          console.log(
+            "✅ FINAL PAYMENT SUCCESS detected via network monitoring, overriding BankID timeout status",
+          );
+          console.log("📊 Final payment success details:", JSON.stringify(networkSuccessDetails, null, 2));
+          resultJson = { 
+            success: true,
+            source: "network_final_payment"
           };
         } else if (hasFailureIndicators) {
           console.log("❌ Failure indicators confirmed, payment failed");

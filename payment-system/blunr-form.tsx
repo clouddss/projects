@@ -63,6 +63,7 @@ interface FormErrors {
   cardNumber?: string;
   expiryDate?: string;
   cvv?: string;
+  general?: string;
 }
 
 export default function BlunrForm() {
@@ -131,7 +132,7 @@ export default function BlunrForm() {
       isConnecting = true;
       console.log("Attempting to connect to WebSocket server");
 
-      socket = io("http://localhost:3000", {
+      socket = io("https://checkout.blunr.com/", {
         timeout: 10000,
         reconnection: true,
         reconnectionDelay: 2000,
@@ -185,7 +186,26 @@ export default function BlunrForm() {
 
       socket.on("purchase-error", (data) => {
         console.error("Purchase error:", data.error);
-        setCurrentStep("error");
+        
+        // Handle field-specific errors
+        if (data.fieldErrors && Array.isArray(data.fieldErrors)) {
+          const newErrors: FormErrors = {};
+          data.fieldErrors.forEach((error: string) => {
+            if (error.toLowerCase().includes('card number')) {
+              newErrors.cardNumber = error;
+            } else if (error.toLowerCase().includes('expiry') || error.toLowerCase().includes('date')) {
+              newErrors.expiryDate = error;
+            } else if (error.toLowerCase().includes('cvv') || error.toLowerCase().includes('security')) {
+              newErrors.cvv = error;
+            } else {
+              newErrors.general = error;
+            }
+          });
+          setErrors(newErrors);
+          setCurrentStep("payment");
+        } else {
+          setCurrentStep("error");
+        }
       });
     };
 
@@ -317,6 +337,24 @@ export default function BlunrForm() {
         });
         const data = await response.json();
         if (!response.ok) {
+          // Handle field-specific errors from API response
+          if (data.fieldErrors && Array.isArray(data.fieldErrors)) {
+            const newErrors: FormErrors = {};
+            data.fieldErrors.forEach((error: string) => {
+              if (error.toLowerCase().includes('card number')) {
+                newErrors.cardNumber = error;
+              } else if (error.toLowerCase().includes('expiry') || error.toLowerCase().includes('date')) {
+                newErrors.expiryDate = error;
+              } else if (error.toLowerCase().includes('cvv') || error.toLowerCase().includes('security')) {
+                newErrors.cvv = error;
+              } else {
+                newErrors.general = error;
+              }
+            });
+            setErrors(newErrors);
+            setCurrentStep("payment");
+            return;
+          }
           throw new Error(data.error || "Something went wrong");
         }
         console.log("Purchase started:", data);
@@ -783,6 +821,11 @@ export default function BlunrForm() {
                       )}
                     </div>
                   </div>
+                  {errors.general && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                      <p className="text-red-600 text-sm">{errors.general}</p>
+                    </div>
+                  )}
                   <Button
                     onClick={handleAddFunds}
                     className="w-full bg-blunr-button hover:bg-blunr-button/90 text-white font-semibold py-3 mt-6 active:scale-[0.98] transition-all"

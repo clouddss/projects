@@ -9,6 +9,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    allowedDevOrigins: ['checkout.blunr.com'],
+  },
 }
 
 export default nextConfig

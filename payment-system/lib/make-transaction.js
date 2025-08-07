@@ -429,6 +429,10 @@ async function main() {
   }); */
   const page = await browser.newPage();
 
+  const customUserAgent =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.82 Safari/537.36";
+  await page.setUserAgent(customUserAgent);
+
   // Enable comprehensive network request/response logging
   console.log("🌐 === ENABLING NETWORK MONITORING ===");
 

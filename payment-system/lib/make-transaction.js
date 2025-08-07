@@ -429,10 +429,6 @@ async function main() {
   }); */
   const page = await browser.newPage();
 
-  const customUserAgent =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.82 Safari/537.36";
-  await page.setUserAgent(customUserAgent);
-
   // Enable comprehensive network request/response logging
   console.log("🌐 === ENABLING NETWORK MONITORING ===");
 
@@ -506,16 +502,22 @@ async function main() {
 
     try {
       // Wait for page to fully load
-      await new Promise((resolve) => setTimeout(resolve, 3000)); // Give the page time to load
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
 
       // Additional wait for dynamic content
       await page
         .waitForFunction(() => document.readyState === "complete", {
-          timeout: 2000,
+          timeout: 10000,
         })
         .catch(() => {
           console.log("Document ready timeout, continuing anyway...");
         });
+
+      // Take a debug screenshot
+      await page.screenshot({
+        path: path.join(__dirname, "screenshots", "debug-before-amount.png"),
+        fullPage: true,
+      });
 
       // Try multiple selectors
       const selectors = [

@@ -40,38 +40,44 @@ app.use(express.urlencoded({
   extended: true,
 }));
 
-// ✅ CORS configuration with explicit header handling
-app.use((req, res, next) => {
-  const allowedOrigins = ['https://blunr.com', 'http://localhost:3000', 'http://localhost:4200'];
-  const origin = req.headers.origin;
-  
-  // Remove any existing CORS headers to prevent duplicates
-  res.removeHeader('Access-Control-Allow-Origin');
-  res.removeHeader('Access-Control-Allow-Methods');
-  res.removeHeader('Access-Control-Allow-Headers');
-  res.removeHeader('Access-Control-Allow-Credentials');
-  
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
-  
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
+// ✅ CORS configuration - Fixed to prevent duplicate headers
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = ['https://blunr.com', 'http://localhost:3000', 'http://localhost:4200'];
+    // Allow requests with no origin (like mobile apps)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
+};
 
-// ✅ Helmet for basic security (excluding crossOriginResourcePolicy to avoid conflicts)
+app.use(cors(corsOptions));
+
+// ✅ Helmet for basic security (with CORS-safe configuration)
 app.use(helmet({
   crossOriginResourcePolicy: false,
   crossOriginOpenerPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  // Disable helmet's HSTS to avoid conflicts with Cloudflare
+  hsts: false
 }));
+
+// ✅ Additional middleware to ensure no duplicate CORS headers
+app.use((req, res, next) => {
+  // Override any duplicate headers that might be set by proxy or infrastructure
+  const origin = req.headers.origin;
+  if (origin && ['https://blunr.com', 'http://localhost:3000', 'http://localhost:4200'].includes(origin)) {
+    // Force set the header to override any duplicates
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+  next();
+});
 
 // ✅ Raw body parsers for Webhooks (for signature verification)
 app.post('/api/transaction/webhook', bodyParser.raw({ type: '*/*' }), coinbaseWebhook);

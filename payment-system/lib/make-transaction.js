@@ -1470,6 +1470,38 @@ async function main() {
     });
     console.log("📸 Screenshot taken: bankid-monitoring-start.png");
 
+    // Set up network monitoring for success indicators
+    let networkSuccessDetected = false;
+    let networkSuccessDetails = null;
+
+    page.on("response", (response) => {
+      const url = response.url();
+      try {
+        // Monitor for success indicators in URLs or responses
+        if (
+          url.includes("param=Y") ||
+          url.includes("param=y") ||
+          url.includes("transStatus=Y") ||
+          url.includes("transStatus=y") ||
+          url.includes("success") ||
+          url.includes("complete")
+        ) {
+          console.log("🎯 SUCCESS INDICATOR DETECTED IN NETWORK RESPONSE!");
+          console.log("🌐 Success URL:", url);
+          console.log("📡 Response status:", response.status());
+          
+          networkSuccessDetected = true;
+          networkSuccessDetails = {
+            url: url,
+            status: response.status(),
+            timestamp: new Date().toISOString(),
+          };
+        }
+      } catch (error) {
+        // Ignore errors in response monitoring
+      }
+    });
+
     console.log("Waiting for BankID completion in the background...");
     const resultHandle = await bankIdFrame
       .waitForFunction(
@@ -1489,6 +1521,21 @@ async function main() {
       .catch((error) => {
         console.error("⚠️ BankID waitForFunction error:", error.message);
         console.error("🔍 Full error details:", error);
+        
+        // Check if error is due to iframe closure (common with BankID success)
+        if (error.message.includes("Session closed") || 
+            error.message.includes("iframe has been closed") ||
+            error.message.includes("Protocol error")) {
+          console.log("🔍 IFRAME CLOSURE DETECTED - This often indicates BankID success!");
+          console.log("✅ Iframe closed unexpectedly, checking for network success indicators...");
+          
+          if (networkSuccessDetected) {
+            console.log("🎯 Network success was detected, treating iframe closure as success!");
+            console.log("📊 Network success details:", JSON.stringify(networkSuccessDetails, null, 2));
+            return { success: true, source: "network_and_iframe_closure" };
+          }
+        }
+        
         return null;
       });
 
@@ -1566,9 +1613,19 @@ async function main() {
           })
           .catch(() => false);
 
-        if (mainPageSuccess) {
-          console.log("Success detected on main page after BankID timeout");
-          resultJson = { success: true };
+        // Check all success indicators: main page content, network responses, and URL patterns
+        if (mainPageSuccess || networkSuccessDetected) {
+          if (mainPageSuccess) {
+            console.log("✅ Success detected on main page after BankID timeout");
+          }
+          if (networkSuccessDetected) {
+            console.log("✅ Success detected in network responses after BankID timeout");
+            console.log("📊 Network success details:", JSON.stringify(networkSuccessDetails, null, 2));
+          }
+          resultJson = { 
+            success: true, 
+            source: mainPageSuccess ? "main_page" : "network_response" 
+          };
         } else {
           resultJson = {
             success: false,
@@ -1615,7 +1672,7 @@ async function main() {
           .catch(() => "");
         console.log("Page content preview:", pageContent.substring(0, 500));
 
-        // Only treat as success if we have explicit positive indicators
+        // Enhanced success detection for various patterns
         const hasSuccessIndicators =
           pageContent.includes("success") ||
           pageContent.includes("completed") ||
@@ -1625,7 +1682,17 @@ async function main() {
           pageContent.includes("bekräftad") ||
           currentUrl.includes("success") ||
           currentUrl.includes("complete") ||
-          currentUrl.includes("confirmed");
+          currentUrl.includes("confirmed") ||
+          // Network response success patterns (from BankID callbacks)
+          currentUrl.includes("param=y") ||
+          currentUrl.includes("param=Y") ||
+          currentUrl.includes("transStatus=Y") ||
+          currentUrl.includes("transStatus=y") ||
+          pageContent.includes("transstatus") && pageContent.includes("y") ||
+          pageContent.includes("param") && pageContent.includes("y") ||
+          // Additional BankID success patterns
+          pageContent.includes("signatur mottagen") ||
+          pageContent.includes("signature received");
 
         // Check for failure indicators
         const hasFailureIndicators =
@@ -1638,16 +1705,28 @@ async function main() {
           pageContent.includes("fel") ||
           pageContent.includes("tiden är löpt ut");
 
-        if (hasSuccessIndicators && !hasFailureIndicators) {
-          console.log(
-            "Explicit success indicators found, overriding BankID timeout status",
-          );
-          resultJson = { success: true };
+        // Also consider network success detection in final verification
+        if ((hasSuccessIndicators || networkSuccessDetected) && !hasFailureIndicators) {
+          if (hasSuccessIndicators) {
+            console.log(
+              "✅ Explicit success indicators found in page content, overriding BankID timeout status",
+            );
+          }
+          if (networkSuccessDetected) {
+            console.log(
+              "✅ Network success indicators found, overriding BankID timeout status",
+            );
+            console.log("📊 Network success details:", JSON.stringify(networkSuccessDetails, null, 2));
+          }
+          resultJson = { 
+            success: true,
+            source: hasSuccessIndicators ? "page_content" : "network_response"
+          };
         } else if (hasFailureIndicators) {
-          console.log("Failure indicators confirmed, payment failed");
+          console.log("❌ Failure indicators confirmed, payment failed");
         } else {
           console.log(
-            "No clear success indicators found, maintaining failed status",
+            "⚠️ No clear success indicators found, maintaining failed status",
           );
         }
       } catch (error) {

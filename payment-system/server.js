@@ -9,7 +9,7 @@ const dev = process.env.NODE_ENV !== 'production'
 const app = next({ dev })
 const handle = app.getRequestHandler()
 
-let purchaseProcess;
+const purchaseProcesses = new Map(); // Track processes by socket ID
 
 app.prepare().then(() => {
   const server = createServer((req, res) => {
@@ -20,16 +20,22 @@ app.prepare().then(() => {
         body += chunk.toString();
       });
       req.on('end', () => {
-        const { amount, currency, cardDetails, name, street, city, zip, blunrParams } = JSON.parse(body);
+        const { amount, currency, cardDetails, name, street, city, zip, blunrParams, socketId } = JSON.parse(body);
 
-        if (purchaseProcess && purchaseProcess.connected) {
-          console.log('A purchase process is already running.');
+        if (!socketId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Socket ID is required for purchase processing.' }));
+          return;
+        }
+
+        if (purchaseProcesses.has(socketId)) {
+          console.log(`A purchase process is already running for socket ${socketId}.`);
           res.writeHead(409, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'A purchase process is already in progress.' }));
           return;
         }
 
-        purchaseProcess = fork(path.join(__dirname, 'lib', 'make-transaction.js'), [], {
+        const purchaseProcess = fork(path.join(__dirname, 'lib', 'make-transaction.js'), [], {
           env: {
             ...process.env,
             AMOUNT: amount,
@@ -46,29 +52,38 @@ app.prepare().then(() => {
           }
         });
 
+        // Store the process with socket ID
+        purchaseProcesses.set(socketId, purchaseProcess);
+
         purchaseProcess.on('message', (message) => {
           if (message.type === 'bankid-detected') {
             console.log('BankID detected by child process, emitting to frontend.');
-            io.emit('show-bankid-prompt');
+            io.to(socketId).emit('show-bankid-prompt');
           } else if (message.type === 'purchase-complete') {
             console.log('Purchase complete message from child, emitting to frontend.');
-            io.emit('purchase-complete', message.data);
+            io.to(socketId).emit('purchase-complete', message.data);
+          } else if (message.type === 'payment-error') {
+            console.log('Payment error from child process:', message);
+            io.to(socketId).emit('purchase-error', { 
+              error: message.error, 
+              fieldErrors: message.fieldErrors 
+            });
           }
         });
 
         purchaseProcess.on('error', (err) => {
-          console.error('Failed to start purchase process:', err);
-          io.emit('purchase-error', { error: 'Failed to start purchase process.' });
-          purchaseProcess = null;
+          console.error(`Failed to start purchase process for socket ${socketId}:`, err);
+          io.to(socketId).emit('purchase-error', { error: 'Failed to start purchase process.' });
+          purchaseProcesses.delete(socketId);
         });
 
         purchaseProcess.on('exit', (code) => {
-          console.log(`Purchase process exited with code ${code}`);
+          console.log(`Purchase process for socket ${socketId} exited with code ${code}`);
           if (code !== 0) {
             console.log('Purchase process exited with a non-zero code. Emitting error to frontend.');
-            io.emit('purchase-error', { error: 'The purchase process failed. Please try again.' });
+            io.to(socketId).emit('purchase-error', { error: 'The purchase process failed. Please try again.' });
           }
-          purchaseProcess = null; // Allow a new process to start
+          purchaseProcesses.delete(socketId);
         });
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -98,6 +113,16 @@ app.prepare().then(() => {
 
     socket.on('disconnect', (reason) => {
       console.log(`User with socket ID: ${socket.id} disconnected. Reason: ${reason}`);
+      
+      // Clean up any running purchase process for this socket
+      if (purchaseProcesses.has(socket.id)) {
+        const process = purchaseProcesses.get(socket.id);
+        if (process && process.connected) {
+          console.log(`Killing purchase process for disconnected socket ${socket.id}`);
+          process.kill();
+        }
+        purchaseProcesses.delete(socket.id);
+      }
     });
 
     socket.on('error', (error) => {

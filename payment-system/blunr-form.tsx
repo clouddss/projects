@@ -82,6 +82,7 @@ export default function BlunrForm() {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [blunrParams, setBlunrParams] = useState<BlunrPaymentParams>({});
+  const [socketId, setSocketId] = useState<string | null>(null);
 
   // Parse URL parameters from Blunr
   useEffect(() => {
@@ -142,6 +143,7 @@ export default function BlunrForm() {
 
       socket.on("connect", () => {
         console.log(`Connected to WebSocket server with ID: ${socket.id}`);
+        setSocketId(socket.id);
         isConnecting = false;
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout);
@@ -320,6 +322,7 @@ export default function BlunrForm() {
             street: formData.streetAddress,
             city: formData.city,
             zip: formData.zipCode,
+            socketId: socketId, // Add socket ID for process tracking
             // Include Blunr-specific parameters
             blunrParams: {
               type: blunrParams.type,

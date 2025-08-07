@@ -910,8 +910,8 @@ async function main() {
       // Send error back to frontend and cancel transaction
       process.send({
         type: "payment-error",
-        errors: fieldErrors,
-        message: "Payment form validation failed",
+        fieldErrors: fieldErrors,
+        error: "Payment form validation failed",
       });
 
       // Take screenshot for debugging
@@ -920,9 +920,9 @@ async function main() {
         fullPage: true,
       });
 
-      throw new Error(
-        `Payment form validation failed: ${fieldErrors.join(", ")}`,
-      );
+      // Exit cleanly so the server doesn't think this is a system error
+      console.log("Exiting due to field validation errors");
+      process.exit(0);
     }
 
     console.log("No field errors detected, proceeding with payment");

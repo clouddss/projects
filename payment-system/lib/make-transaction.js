@@ -407,7 +407,7 @@ async function main() {
   // Proxy configuration
   const proxyServer = "gate.nodemaven.com:8080";
   const proxyUsername =
-    "mohammedistanbul123_gmail_com-country-se-region-stockholm_county-sid-4fc068db62dc4-filter-medium";
+    "mohammedistanbul123_gmail_com-country-se-sid-6c634d2c9e764-filter-medium";
   const proxyPassword = "2xmllgs8ht";
   const browser = await puppeteerExtra.launch({
     headless: "new",

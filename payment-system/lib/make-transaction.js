@@ -1541,8 +1541,14 @@ async function main() {
 
     let resultJson;
     if (resultHandle) {
-      resultJson = await resultHandle.jsonValue();
-      console.log("🎯 BankID result received from waitForFunction:");
+      // Handle both JSHandle (from page evaluation) and plain objects (from enhanced detection)
+      if (typeof resultHandle.jsonValue === 'function') {
+        resultJson = await resultHandle.jsonValue();
+        console.log("🎯 BankID result received from waitForFunction (JSHandle):");
+      } else {
+        resultJson = resultHandle;
+        console.log("🎯 BankID result received from enhanced detection (plain object):");
+      }
       console.log("📊 Result JSON:", JSON.stringify(resultJson, null, 2));
     } else {
       // If waitForFunction times out, let's check if we can detect success by other means

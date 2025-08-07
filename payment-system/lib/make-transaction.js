@@ -479,9 +479,8 @@ async function main() {
 
   // Proxy configuration
   const proxyServer = "gate.nodemaven.com:8080";
-  const proxyUsername =
-    "mohammedistanbul123_gmail_com-country-se-sid-6c634d2c9e764-filter-medium";
-  const proxyPassword = "2xmllgs8ht";
+  const proxyUsername = "blunrcomproxy";
+  const proxyPassword = "blunrcomproxy";
   const browser = await puppeteerExtra.launch({
     headless: "new",
     args: [
@@ -503,40 +502,7 @@ async function main() {
   }); */
   const page = await browser.newPage();
 
-  // Set random viewport size (common desktop resolutions)
-  const viewports = [
-    { width: 1920, height: 1080 },
-    { width: 1366, height: 768 },
-    { width: 1536, height: 864 },
-    { width: 1440, height: 900 },
-    { width: 1280, height: 720 },
-  ];
-  const randomViewport =
-    viewports[Math.floor(Math.random() * viewports.length)];
-  await page.setViewport(randomViewport);
-  console.log(
-    `📐 Using viewport: ${randomViewport.width}x${randomViewport.height}`,
-  );
-
   // Override navigator properties to appear more human
-  await page.evaluateOnNewDocument(() => {
-    // Override the navigator.webdriver property
-    Object.defineProperty(navigator, "webdriver", {
-      get: () => undefined,
-    });
-
-    // Add some noise to plugins
-    Object.defineProperty(navigator, "plugins", {
-      get: () => [1, 2, 3, 4, 5],
-    });
-
-    // Override permissions
-    const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (parameters) =>
-      parameters.name === "notifications"
-        ? Promise.resolve({ state: Notification.permission })
-        : originalQuery(parameters);
-  });
 
   // Enable comprehensive network request/response logging
   console.log("🌐 === ENABLING NETWORK MONITORING ===");
@@ -575,7 +541,10 @@ async function main() {
 
     while (retries > 0 && !navigationSuccess) {
       try {
-        await page.goto("https://switchere.com/onramp#/");
+        await page.goto("https://switchere.com/onramp#/", {
+          waitUntil: "domcontentloaded", // Less strict than networkidle2
+          timeout: 90000, // 90 seconds timeout
+        });
         navigationSuccess = true;
       } catch (navError) {
         console.log(`⚠️ Navigation attempt failed: ${navError.message}`);

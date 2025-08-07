@@ -393,6 +393,65 @@ async function solveCaptchaIfNeeded(page) {
   }
 }
 
+// Helper function to add random delays (more human-like)
+function randomDelay(min = 500, max = 2000) {
+  return new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min));
+}
+
+// Helper function to type text with human-like delays
+async function typeWithDelay(page, selector, text, options = {}) {
+  const element = await page.$(selector);
+  if (!element) {
+    throw new Error(`Element not found: ${selector}`);
+  }
+  
+  // Clear existing content first
+  await element.click({ clickCount: 3 });
+  await page.keyboard.press('Backspace');
+  
+  // Random delay before typing
+  await randomDelay(200, 500);
+  
+  // Type each character with random delay
+  for (const char of text) {
+    await page.type(selector, char, { delay: Math.random() * 100 + 50 });
+    // Occasionally pause longer between words
+    if (char === ' ' && Math.random() > 0.7) {
+      await randomDelay(100, 300);
+    }
+  }
+}
+
+// Helper function to move mouse randomly (simulate human behavior)
+async function randomMouseMovement(page) {
+  const viewport = page.viewport();
+  const x = Math.floor(Math.random() * viewport.width);
+  const y = Math.floor(Math.random() * viewport.height);
+  await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
+}
+
+// Helper function for smart clicking with random offsets
+async function humanClick(page, selector) {
+  const element = await page.$(selector);
+  if (!element) {
+    throw new Error(`Element not found for clicking: ${selector}`);
+  }
+  
+  const box = await element.boundingBox();
+  if (!box) {
+    throw new Error(`Element has no bounding box: ${selector}`);
+  }
+  
+  // Click somewhere random within the element
+  const x = box.x + (box.width * 0.3) + (Math.random() * box.width * 0.4);
+  const y = box.y + (box.height * 0.3) + (Math.random() * box.height * 0.4);
+  
+  // Move mouse to element first
+  await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
+  await randomDelay(100, 300);
+  await page.mouse.click(x, y);
+}
+
 async function main() {
   const amount = process.env.AMOUNT || 200;
   const gmail = "m4teelias@gmail.com";
@@ -539,11 +598,29 @@ async function main() {
     console.log("🌐 === NAVIGATING TO SWITCHERE ===");
     console.log("📍 Target URL: https://switchere.com/onramp#/");
 
+    // Try navigation with retry logic
     const navigationStart = Date.now();
-    await page.goto("https://switchere.com/onramp#/", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
-    });
+    let navigationSuccess = false;
+    let retries = 3;
+    
+    while (retries > 0 && !navigationSuccess) {
+      try {
+        await page.goto("https://switchere.com/onramp#/", {
+          waitUntil: "domcontentloaded", // Less strict than networkidle2
+          timeout: 90000, // Increase to 90 seconds
+        });
+        navigationSuccess = true;
+      } catch (navError) {
+        console.log(`⚠️ Navigation attempt failed: ${navError.message}`);
+        retries--;
+        if (retries > 0) {
+          console.log(`🔄 Retrying navigation... (${retries} attempts left)`);
+          await randomDelay(2000, 5000);
+        } else {
+          throw navError;
+        }
+      }
+    }
 
     // CAPTCHA checking already started at the beginning
 
@@ -931,12 +1008,40 @@ async function main() {
     }
 
     console.log("Entering wallet address...");
-    await page.waitForSelector('input[name="wallet"]', { visible: true });
-    const walletInput = await page.$('input[name="wallet"]');
-    await walletInput.click();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await walletInput.type(walletAddress);
-    console.log("Wallet address entered.");
+    
+    // Wait for page to be ready and wallet input to appear
+    try {
+      await page.waitForSelector('input[name="wallet"]', { 
+        visible: true,
+        timeout: 45000 // 45 seconds timeout
+      });
+      
+      // Add random mouse movement before interacting
+      await randomMouseMovement(page);
+      await randomDelay(500, 1500);
+      
+      // Use human-like typing for wallet address
+      await typeWithDelay(page, 'input[name="wallet"]', walletAddress);
+      console.log("Wallet address entered.");
+      
+      // Random delay after typing
+      await randomDelay(500, 1000);
+    } catch (walletError) {
+      console.error("❌ Failed to find wallet input field");
+      console.error("Error:", walletError.message);
+      
+      // Take screenshot for debugging
+      await page.screenshot({
+        path: path.join(__dirname, "screenshots", "wallet-error.png"),
+        fullPage: true
+      });
+      
+      // Check if we're on the right page
+      const currentUrl = page.url();
+      console.log("Current URL:", currentUrl);
+      
+      throw walletError;
+    }
 
     console.log("Waiting for 1 second...");
     await new Promise((resolve) => setTimeout(resolve, 1000));

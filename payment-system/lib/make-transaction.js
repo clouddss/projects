@@ -472,8 +472,6 @@ async function main() {
     console.log("Starting CAPTCHA monitoring (checking every 3 seconds)...");
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 3000);
 
-    await page.waitForNetworkIdle({ timeout: 60000 });
-
     console.log("🌐 === NAVIGATING TO SWITCHERE ===");
     console.log("📍 Target URL: https://switchere.com/onramp#/");
 

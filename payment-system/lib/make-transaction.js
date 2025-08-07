@@ -496,42 +496,22 @@ async function main() {
       timeout: 60000,
     });
 
-    const navigationTime = Date.now() - navigationStart;
-    console.log(`⏱️ Navigation completed in ${navigationTime}ms`);
-    console.log(`📍 Final URL: ${page.url()}`);
-    console.log(`📄 Page title: ${await page.title()}`);
-
-    // Take initial screenshot
-    await page.screenshot({
-      path: path.join(__dirname, "screenshots", "01-initial-page-load.png"),
-      fullPage: true,
-    });
-    console.log("📸 Initial page screenshot taken");
-
-    // Try to load existing cookies
-
     // CAPTCHA checking already started at the beginning
 
     console.log(`Entering ${amount}...`);
 
     try {
       // Wait for page to fully load
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
+      await new Promise((resolve) => setTimeout(resolve, 3000)); // Give the page time to load
 
       // Additional wait for dynamic content
       await page
         .waitForFunction(() => document.readyState === "complete", {
-          timeout: 10000,
+          timeout: 2000,
         })
         .catch(() => {
           console.log("Document ready timeout, continuing anyway...");
         });
-
-      // Take a debug screenshot
-      await page.screenshot({
-        path: path.join(__dirname, "screenshots", "debug-before-amount.png"),
-        fullPage: true,
-      });
 
       // Try multiple selectors
       const selectors = [

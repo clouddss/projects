@@ -3,8 +3,51 @@ const path = require("path");
 const puppeteerExtra = require("puppeteer-extra");
 const Stealth = require("puppeteer-extra-plugin-stealth");
 const axios = require("axios");
+const https = require("https");
 puppeteerExtra.use(Stealth());
 const fs = require("fs");
+
+// Load Bright Data SSL certificate
+const brightDataCert = fs.readFileSync(
+  path.join(__dirname, "BrightData SSL certificate (port 33335).crt"),
+);
+
+// Create HTTPS agent with custom certificate
+const httpsAgent = new https.Agent({
+  ca: brightDataCert,
+  rejectUnauthorized: false, // Set to true in production for better security
+});
+
+// Test Bright Data proxy connection
+async function testBrightDataConnection() {
+  try {
+    console.log("Testing Bright Data proxy connection with SSL certificate...");
+
+    const testResponse = await axios.get(
+      "https://geo.brdtest.com/welcome.txt",
+      {
+        proxy: {
+          protocol: "http",
+          host: "brd.superproxy.io",
+          port: 33335,
+          auth: {
+            username: "brd-customer-hl_db0d15f7-zone-web_unlocker1",
+            password: "vj3959aai5pp",
+          },
+        },
+        httpsAgent: httpsAgent,
+        timeout: 10000,
+      },
+    );
+
+    console.log("✅ Bright Data connection successful!");
+    console.log("Response:", testResponse.data.substring(0, 100) + "...");
+    return true;
+  } catch (error) {
+    console.log("❌ Bright Data connection failed:", error.message);
+    return false;
+  }
+}
 
 // After successful login, save cookies
 async function saveCookies(page, filePath) {
@@ -73,6 +116,8 @@ async function addFundsToCreatorWallet(blunrParams, amount) {
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
       timeout: 10000,
+      // Use the HTTPS agent with Bright Data certificate
+      httpsAgent: httpsAgent,
       // Explicitly disable proxy for this request
       proxy: false,
       // Don't follow redirects automatically
@@ -292,16 +337,22 @@ async function main() {
   const extensionPath = path.join(process.cwd(), "buster-extension");
 
   // Proxy configuration
-  const proxyServer = "193.160.223.203:38593";
-  const proxyUsername = "blyw9835";
-  const proxyPassword = "IRJpdq4612";
+  const proxyServer = "gate.nodemaven.com:8080";
+  const proxyUsername =
+    "mohammedistanbul123_gmail_com-country-se-region-stockholm_county-sid-4fc068db62dc4-filter-medium";
+  const proxyPassword = "2xmllgs8ht";
   const browser = await puppeteerExtra.launch({
-    headless: false,
+    headless: "new",
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
       `--proxy-server=${proxyServer}`,
+      `--proxy-bypass-list=<-loopback>`, // Bypass proxy for local requests
+      "--ignore-certificate-errors-spki-list",
+      "--ignore-certificate-errors",
+      "--ignore-ssl-errors",
+      `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
     ],
   });
   const page = await browser.newPage();
@@ -311,6 +362,8 @@ async function main() {
     username: proxyUsername,
     password: proxyPassword,
   });
+
+  await loadCookies(page, path.join(__dirname, "cookies.json"));
 
   console.log(`Using proxy: ${proxyServer} with username: ${proxyUsername}`);
 
@@ -330,25 +383,7 @@ async function main() {
       timeout: 60000,
     });
 
-    // Log the current URL in case of redirect
-    const currentUrl = page.url();
-    console.log("Current URL after navigation:", currentUrl);
-
-    await page.screenshot({
-      path: path.join(__dirname, "screenshots", "initial-load.png"),
-      fullPage: true,
-    });
-    console.log("Initial page loaded.");
-
     // Try to load existing cookies
-    const cookiesPath = path.join(__dirname, "cookies.json");
-    const cookiesLoaded = await loadCookies(page, cookiesPath);
-
-    if (cookiesLoaded) {
-      console.log("Cookies loaded, refreshing page to apply them...");
-      await page.reload({ waitUntil: "networkidle2" });
-      console.log("Page reloaded with cookies.");
-    }
 
     // CAPTCHA checking already started at the beginning
 

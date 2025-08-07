@@ -424,6 +424,11 @@ async function typeWithDelay(page, selector, text, options = {}) {
 // Helper function to move mouse randomly (simulate human behavior)
 async function randomMouseMovement(page) {
   const viewport = page.viewport();
+  // Check if viewport exists
+  if (!viewport) {
+    console.log("⚠️ No viewport set, skipping mouse movement");
+    return;
+  }
   const x = Math.floor(Math.random() * viewport.width);
   const y = Math.floor(Math.random() * viewport.height);
   await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
@@ -946,7 +951,7 @@ async function main() {
       });
 
       // Add random mouse movement before interacting
-      await randomMouseMovement(page);
+
       await randomDelay(500, 1500);
 
       // Use human-like typing for wallet address

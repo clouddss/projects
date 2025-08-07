@@ -433,7 +433,8 @@ async function main() {
   }); */
   const page = await browser.newPage();
 
-  const randomUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  const randomUserAgent =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
   await page.setUserAgent(randomUserAgent);
 
@@ -487,8 +488,8 @@ async function main() {
 
     try {
       await page.goto("https://switchere.com/onramp#/", {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
+        waitUntil: "networkidle0",
+        timeout: 10000,
       });
       console.log("✅ Page navigation successful");
     } catch (error) {

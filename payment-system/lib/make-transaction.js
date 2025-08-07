@@ -341,27 +341,31 @@ async function main() {
   const proxyUsername =
     "mohammedistanbul123_gmail_com-country-se-region-stockholm_county-sid-4fc068db62dc4-filter-medium";
   const proxyPassword = "2xmllgs8ht";
-  const browser = await puppeteerExtra.launch({
-    headless: "new",
-    args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
-      "--no-sandbox",
-      `--proxy-server=${proxyServer}`,
-      `--proxy-bypass-list=<-loopback>`, // Bypass proxy for local requests
-      "--ignore-certificate-errors-spki-list",
-      "--ignore-certificate-errors",
-      "--ignore-ssl-errors",
-      `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
-    ],
+  /*  const browser = await puppeteerExtra.launch({
+     headless: "new",
+     args: [
+       `--disable-extensions-except=${extensionPath}`,
+       `--load-extension=${extensionPath}`,
+       "--no-sandbox",
+       `--proxy-server=${proxyServer}`,
+       `--proxy-bypass-list=<-loopback>`, // Bypass proxy for local requests
+       "--ignore-certificate-errors-spki-list",
+       "--ignore-certificate-errors",
+       "--ignore-ssl-errors",
+       `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
+     ],
+   });*/
+  const browser = await puppeteer.connect({
+    browserWSEndpoint:
+      "wss://mohammedistanbul123_gmail_com-country-any-sid-ee682069a1144:2xmllgs8ht@browser.nodemaven.com",
   });
   const page = await browser.newPage();
 
   // Authenticate with proxy
-  await page.authenticate({
+  /*  await page.authenticate({
     username: proxyUsername,
     password: proxyPassword,
-  });
+  }); */
 
   await loadCookies(page, path.join(__dirname, "cookies.json"));
 

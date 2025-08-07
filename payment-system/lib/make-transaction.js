@@ -981,21 +981,113 @@ async function main() {
     console.log("Waiting for 1 second...");
     await new Promise((resolve) => setTimeout(resolve, 1000));
     console.log("Clicking the second 'Buy' button...");
-    const buyButtons2Handle = await page.evaluateHandle(() => {
-      const buttons = Array.from(document.querySelectorAll("button"));
-      const buyButtons = buttons.filter((button) =>
-        button.textContent.includes("Buy"),
-      );
-      return buyButtons.length > 0 ? buyButtons[buyButtons.length - 1] : null;
+    // First, check if wallet popup is blocking and close it
+    console.log("🔍 Checking for wallet selection popup before Buy button...");
+    const walletPopupVisible = await page.evaluate(() => {
+      const popup = document.getElementById('wallets-popup');
+      const addingPopup = document.getElementById('wallets-adding-popup');
+      return {
+        walletPopup: popup && popup.offsetParent !== null,
+        addingPopup: addingPopup && addingPopup.offsetParent !== null
+      };
     });
-    if (buyButtons2Handle.asElement()) {
-      await buyButtons2Handle.asElement().click();
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      await buyButtons2Handle.asElement().click();
-    } else {
-      throw new Error('Could not find second "Buy" button');
+
+    if (walletPopupVisible.walletPopup || walletPopupVisible.addingPopup) {
+      console.log("📱 Wallet popup is blocking - need to close it first");
+      
+      try {
+        // Find and click the X button to close the popup
+        await page.evaluate(() => {
+          const closeButtons = Array.from(document.querySelectorAll('.stepper-header__arrow-back-icon, .fi-cross-thin, .j-sdk__back-button'));
+          const closeButton = closeButtons.find(btn => btn.offsetParent !== null);
+          if (closeButton) {
+            const clickableParent = closeButton.closest('button, a, div[onclick], [role="button"]');
+            if (clickableParent) clickableParent.click();
+            else closeButton.click();
+            return true;
+          }
+          return false;
+        });
+        
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        console.log("✅ Closed wallet popup");
+        
+      } catch (error) {
+        console.log(`⚠️ Error closing wallet popup: ${error.message}`);
+      }
     }
-    console.log("Second 'Buy' button clicked. Proceeding to purchase.");
+
+    // Wait for any loading to finish and find the Buy button
+    console.log("🔍 Looking for Buy button...");
+    let buyButtonClicked = false;
+    
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        const buyButton = await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll("button[type='submit'], button"));
+          const buyButtons = buttons.filter((button) => {
+            const text = button.textContent?.trim();
+            const isLoading = button.querySelector('.ld-ring, .ld-spin');
+            const isDisabled = button.disabled;
+            return text && text.includes("Buy") && !isLoading && !isDisabled && button.offsetParent !== null;
+          });
+          return buyButtons.length > 0 ? buyButtons[0] : null;
+        });
+
+        if (buyButton) {
+          console.log("✅ Found clickable Buy button");
+          await page.evaluate((btn) => {
+            btn.click();
+          }, buyButton);
+          
+          buyButtonClicked = true;
+          break;
+        } else {
+          console.log(`🔄 Buy button not ready yet (attempt ${attempt + 1}/10) - checking for loading state...`);
+          
+          // Check what state the button is in
+          const buttonState = await page.evaluate(() => {
+            const buttons = Array.from(document.querySelectorAll("button"));
+            const buyButtons = buttons.filter(b => b.textContent?.includes("Buy"));
+            if (buyButtons.length > 0) {
+              const btn = buyButtons[0];
+              return {
+                text: btn.textContent?.trim(),
+                disabled: btn.disabled,
+                hasLoader: !!btn.querySelector('.ld-ring, .ld-spin'),
+                visible: btn.offsetParent !== null,
+                className: btn.className
+              };
+            }
+            return null;
+          });
+          
+          console.log(`🔍 Button state:`, JSON.stringify(buttonState, null, 2));
+          
+          if (buttonState && !buttonState.hasLoader && !buttonState.disabled) {
+            // Try clicking even if it wasn't found in the previous check
+            await page.evaluate(() => {
+              const buttons = Array.from(document.querySelectorAll("button"));
+              const buyButton = buttons.find(b => b.textContent?.includes("Buy"));
+              if (buyButton) buyButton.click();
+            });
+            buyButtonClicked = true;
+            break;
+          }
+          
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } catch (error) {
+        console.log(`⚠️ Error in buy button attempt ${attempt + 1}: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    if (!buyButtonClicked) {
+      throw new Error('Could not find or click the Buy button after 10 attempts');
+    }
+    
+    console.log("✅ Buy button clicked successfully. Proceeding to purchase...");
 
     // (Previous code remains the same)
 

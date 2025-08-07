@@ -485,7 +485,7 @@ async function main() {
   // Proxy configuration
   const proxyServer = "gate.nodemaven.com:8080";
   const proxyUsername =
-    "blunrcomproxy-country-se-sid-1efde638a6944-filter-medium-speed-fast";
+    "blunrcomproxy-country-se-type-mobile-sid-1efde638a6944-ttl-16m40s-filter-medium-speed-fast";
   const proxyPassword = "blunrcomproxy";
   const browser = await puppeteerExtra.launch({
     headless: "new",
@@ -1193,7 +1193,7 @@ async function main() {
 
         // Also try searching in the main page (not just frames)
         console.log("🔍 Searching in main page...");
-        
+
         // Check CSS selectors on main page
         for (const selector of newCardSelectors) {
           try {
@@ -1229,7 +1229,8 @@ async function main() {
                   ),
                 );
                 return elements.find((el) => {
-                  const elementText = el.textContent?.trim().toLowerCase() || "";
+                  const elementText =
+                    el.textContent?.trim().toLowerCase() || "";
                   const searchLower = searchText.toLowerCase();
                   return (
                     elementText.includes(searchLower) ||

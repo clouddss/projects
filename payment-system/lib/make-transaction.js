@@ -484,7 +484,8 @@ async function main() {
 
   // Proxy configuration
   const proxyServer = "gate.nodemaven.com:8080";
-  const proxyUsername = "blunrcomproxy";
+  const proxyUsername =
+    "blunrcomproxy-country-se-sid-1efde638a6944-filter-medium-speed-fast";
   const proxyPassword = "blunrcomproxy";
   const browser = await puppeteerExtra.launch({
     headless: "new",
@@ -1010,19 +1011,290 @@ async function main() {
     for (let i = 0; i < 20; i++) {
       // Increased retries to 20 (total 1 minute)
       try {
+        // Take a debug screenshot every 5 attempts
+        if (i % 5 === 0) {
+          await page.screenshot({
+            path: path.join(
+              __dirname,
+              "screenshots",
+              `new-card-search-${i}.png`,
+            ),
+            fullPage: true,
+          });
+          console.log(`📸 Debug screenshot taken: new-card-search-${i}.png`);
+        }
+
+        // Log comprehensive page content
+        const pageContent = await page.evaluate(() => {
+          return {
+            url: window.location.href,
+            title: document.title,
+            bodyText: document.body.innerText.substring(0, 800),
+            buttons: Array.from(document.querySelectorAll("button")).map(
+              (btn) => ({
+                text: btn.textContent?.trim(),
+                className: btn.className,
+                id: btn.id,
+                visible: btn.offsetParent !== null,
+                style: btn.style.cssText || "none",
+                dataset:
+                  Object.keys(btn.dataset).length > 0 ? btn.dataset : null,
+              }),
+            ),
+            links: Array.from(document.querySelectorAll("a")).map((link) => ({
+              text: link.textContent?.trim(),
+              href: link.href,
+              className: link.className,
+              id: link.id,
+              visible: link.offsetParent !== null,
+            })),
+            divs: Array.from(document.querySelectorAll("div"))
+              .filter((div) => {
+                const text = div.textContent?.toLowerCase() || "";
+                const classes = div.className?.toLowerCase() || "";
+                return (
+                  text.includes("card") ||
+                  text.includes("new") ||
+                  classes.includes("card") ||
+                  classes.includes("new") ||
+                  text.includes("payment") ||
+                  text.includes("checkout")
+                );
+              })
+              .map((div) => ({
+                text: div.textContent?.trim().substring(0, 100),
+                className: div.className,
+                id: div.id,
+                visible: div.offsetParent !== null,
+                clickable:
+                  div.onclick !== null || div.style.cursor === "pointer",
+              })),
+            spans: Array.from(document.querySelectorAll("span"))
+              .filter((span) => {
+                const text = span.textContent?.toLowerCase() || "";
+                const classes = span.className?.toLowerCase() || "";
+                return (
+                  text.includes("new card") ||
+                  text.includes("add card") ||
+                  classes.includes("card") ||
+                  classes.includes("new")
+                );
+              })
+              .map((span) => ({
+                text: span.textContent?.trim(),
+                className: span.className,
+                id: span.id,
+                visible: span.offsetParent !== null,
+                clickable:
+                  span.onclick !== null || span.style.cursor === "pointer",
+              })),
+          };
+        });
+        if (i % 5 === 0) {
+          // Only log detailed content every 5 attempts to reduce spam
+          console.log(
+            `🔍 Detailed page state at attempt ${i + 1}:`,
+            JSON.stringify(pageContent, null, 2),
+          );
+        } else {
+          console.log(
+            `🔍 Quick check at attempt ${i + 1}: ${pageContent.buttons.length} buttons, ${pageContent.links.length} links, ${pageContent.divs.length} card-related divs`,
+          );
+        }
+
+        // Try multiple selectors for the new card button with broader matching
+        const newCardSelectors = [
+          ".card-select__new-card .new-card",
+          ".new-card",
+          "button.new-card",
+          ".card-select__new-card",
+          '[class*="new-card"]',
+          '[class*="new_card"]',
+          'button[class*="card"]',
+          'a[class*="card"]',
+          'div[class*="card"][class*="new"]',
+          'div[class*="new"][class*="card"]',
+          '[data-testid*="new-card"]',
+          '[data-testid*="card"]',
+          'button[data-action*="card"]',
+          'button[data-type*="card"]',
+          '[role="button"][class*="card"]',
+          'span[class*="card"][class*="new"]',
+        ];
+
+        // Text-based selectors (handled separately due to complexity)
+        const textBasedSelectors = [
+          { tag: "button", text: "New card" },
+          { tag: "a", text: "New card" },
+          { tag: "div", text: "New card" },
+          { tag: "span", text: "New card" },
+          { tag: "button", text: "Add card" },
+          { tag: "a", text: "Add card" },
+          { tag: "div", text: "Add card" },
+          { tag: "button", text: "Add new card" },
+          { tag: "a", text: "Add new card" },
+          { tag: "*", text: "New payment method" },
+          { tag: "*", text: "Add payment method" },
+        ];
+
         // First, check for the 'New card' button inside all frames
         for (const frame of page.frames()) {
-          const newCardButton = await frame.$(
-            ".card-select__new-card .new-card",
+          try {
+            const frameUrl = frame.url();
+            console.log(`🔍 Checking frame: ${frameUrl}`);
+
+            for (const selector of newCardSelectors) {
+              try {
+                // Use evaluateHandle for more complex selectors
+                const elementHandle = await frame.evaluateHandle((sel) => {
+                  // For :contains selector
+                  if (sel.includes(":contains")) {
+                    const searchText = sel.match(/:contains\("([^"]+)"\)/)?.[1];
+                    const tagName = sel.split(":")[0];
+                    if (searchText) {
+                      const elements = Array.from(
+                        document.querySelectorAll(tagName),
+                      );
+                      return elements.find((el) =>
+                        el.textContent?.includes(searchText),
+                      );
+                    }
+                  }
+                  // For regular selectors
+                  return document.querySelector(sel);
+                }, selector);
+
+                const element = elementHandle.asElement();
+                if (element) {
+                  const isVisible = await element.evaluate(
+                    (el) => el.offsetParent !== null,
+                  );
+                  if (isVisible) {
+                    console.log(
+                      `✅ Found 'New card' element with selector: ${selector}`,
+                    );
+                    await element.click();
+                    newCardClicked = true;
+                    break;
+                  }
+                }
+              } catch (e) {
+                // Continue to next selector
+              }
+            }
+
+            if (newCardClicked) break;
+          } catch (frameError) {
+            console.log(`⚠️ Error checking frame: ${frameError.message}`);
+          }
+        }
+
+        if (newCardClicked) break;
+
+        // Also try searching in the main page (not just frames)
+        console.log("🔍 Searching in main page...");
+        
+        // Check CSS selectors on main page
+        for (const selector of newCardSelectors) {
+          try {
+            const element = await page.$(selector);
+            if (element) {
+              const isVisible = await element.evaluate(
+                (el) => el.offsetParent !== null,
+              );
+              if (isVisible) {
+                console.log(
+                  `✅ Found 'New card' element in main page with CSS selector: ${selector}`,
+                );
+                await element.click();
+                newCardClicked = true;
+                break;
+              }
+            }
+          } catch (e) {
+            // Continue to next selector
+          }
+        }
+
+        if (newCardClicked) break;
+
+        // Check text-based selectors on main page
+        for (const { tag, text } of textBasedSelectors) {
+          try {
+            const element = await page.evaluateHandle(
+              (tagName, searchText) => {
+                const elements = Array.from(
+                  document.querySelectorAll(
+                    tagName === "*" ? "button, a, div, span" : tagName,
+                  ),
+                );
+                return elements.find((el) => {
+                  const elementText = el.textContent?.trim().toLowerCase() || "";
+                  const searchLower = searchText.toLowerCase();
+                  return (
+                    elementText.includes(searchLower) ||
+                    elementText === searchLower ||
+                    el
+                      .getAttribute("aria-label")
+                      ?.toLowerCase()
+                      .includes(searchLower) ||
+                    el
+                      .getAttribute("title")
+                      ?.toLowerCase()
+                      .includes(searchLower)
+                  );
+                });
+              },
+              tag,
+              text,
+            );
+
+            const el = element.asElement();
+            if (el) {
+              const isVisible = await el.evaluate(
+                (el) => el.offsetParent !== null,
+              );
+              if (isVisible) {
+                console.log(
+                  `✅ Found 'New card' element in main page with text "${text}" in ${tag} tag`,
+                );
+                await el.click();
+                newCardClicked = true;
+                break;
+              }
+            }
+          } catch (e) {
+            // Continue to next selector
+          }
+        }
+
+        if (newCardClicked) break;
+
+        // If not found, check if we're on a different page or state
+        const currentUrl = page.url();
+        if (currentUrl.includes("payment") || currentUrl.includes("checkout")) {
+          console.log(
+            '📍 Already on payment page, might not need "New card" button',
           );
-          if (newCardButton) {
-            console.log("Found 'New card' button, clicking it.");
-            await newCardButton.click();
+
+          // Check if payment form is already visible
+          const hasPaymentForm = await page.evaluate(() => {
+            return !!(
+              document.querySelector('input[name="number"]') ||
+              document.querySelector('input[name="cardNumber"]') ||
+              document.querySelector('iframe[src*="paybis"]') ||
+              document.querySelector('iframe[src*="payment"]')
+            );
+          });
+
+          if (hasPaymentForm) {
+            console.log(
+              '✅ Payment form already visible, skipping "New card" button',
+            );
             newCardClicked = true;
             break;
           }
         }
-        if (newCardClicked) break;
 
         // Wait before the next attempt (CAPTCHA is already being checked every 3 seconds)
         console.log(`Retrying... Attempt ${i + 1}/20`);

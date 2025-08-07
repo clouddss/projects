@@ -40,17 +40,19 @@ app.use(express.urlencoded({
   extended: true,
 }));
 
-// ✅ CORS configuration - DISABLED FOR DEBUGGING
+// ✅ CORS configuration
 app.use(cors({
-  origin: '*',
-  credentials: false,
+  origin: ['https://blunr.com', 'http://localhost:3000', 'http://localhost:4200'],
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   optionsSuccessStatus: 200
 }));
 
-// ✅ Helmet for basic security
-app.use(helmet());
+// ✅ Helmet for basic security (excluding crossOriginResourcePolicy to avoid conflicts)
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
 
 // ✅ Raw body parsers for Webhooks (for signature verification)
 app.post('/api/transaction/webhook', bodyParser.raw({ type: '*/*' }), coinbaseWebhook);

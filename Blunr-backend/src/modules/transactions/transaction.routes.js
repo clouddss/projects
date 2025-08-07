@@ -5,6 +5,7 @@ import {
     getTransactionByIdController, 
     getUserTransactionsController, 
     updateTransactionStatusController,
+    createExternalPaymentTransactionController,
     coinbaseWebhook ,
     nowPaymentsWebhook,
     cryptomusWebhook
@@ -16,6 +17,7 @@ const router = express.Router();
 
 router.post('/create-charge', authMiddleware, createTransactionAndChargeController);
 router.post('/create-checkout-session', authMiddleware, createFillUpCheckoutSessionController);
+router.post('/create-external', createExternalPaymentTransactionController); // No auth for external payment system
 router.get('/getAlltransactions', authMiddleware, getUserTransactionsController);
 router.get('/getTransactionsById/:id', authMiddleware, getTransactionByIdController);
 router.patch('/update/:id/status', authMiddleware, updateTransactionStatusController);

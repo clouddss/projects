@@ -1,4 +1,5 @@
 import * as WalletService from './wallet.service.js';
+import * as TransactionService from '../transactions/transaction.service.js';
 
 /**
  * Get user wallet
@@ -53,28 +54,84 @@ export const addFundsController = async (req, res) => {
 };
 
 /**
- * Credit funds to another user's wallet (for payments/tips)
+ * Credit funds to another user's wallet (for payments/tips) - Enhanced with transaction validation
  */
 export const creditUserWalletController = async (req, res) => {
     try {
-        const { amount, recipientId } = req.body;
+        const { amount, recipientId, transactionId } = req.body;
 
         if (!amount || amount <= 0) {
-            return res.status(400).json({ message: "Invalid amount" });
+            return res.status(400).json({ 
+                success: false,
+                message: "Invalid amount" 
+            });
         }
 
         if (!recipientId) {
-            return res.status(400).json({ message: "Recipient ID is required" });
+            return res.status(400).json({ 
+                success: false,
+                message: "Recipient ID is required" 
+            });
         }
 
+        if (!transactionId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Transaction ID is required for wallet credit" 
+            });
+        }
+
+        // Validate transaction
+        const validation = await TransactionService.validateTransactionForCredit(transactionId);
+        
+        if (!validation.valid) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Transaction validation failed",
+                error: validation.error
+            });
+        }
+
+        const { transaction } = validation;
+
+        // Verify transaction details match request
+        if (transaction.recipient.toString() !== recipientId) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Transaction recipient does not match request" 
+            });
+        }
+
+        if (transaction.amount !== Number(amount)) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Transaction amount does not match request" 
+            });
+        }
+
+        // Credit wallet
         const updatedWallet = await WalletService.updateWalletBalance(recipientId, amount);
+        
+        // Mark transaction as completed
+        await TransactionService.markTransactionCompleted(transactionId, {
+            walletCreditedAt: new Date()
+        });
+
+        // Add transaction to wallet history
+        await WalletService.addTransactionToWallet(recipientId, transactionId);
+
         res.json({ 
             success: true,
             message: "Funds credited successfully", 
-            wallet: updatedWallet 
+            wallet: updatedWallet,
+            transactionId: transactionId
         });
+
     } catch (error) {
         console.error('Error crediting user wallet:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            success: false,
+            error: error.message 
+        });
     }
 };

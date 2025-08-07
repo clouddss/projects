@@ -550,3 +550,63 @@ export const updateTransactionStatusController = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+export const createExternalPaymentTransactionController = async (req, res) => {
+    try {
+        const { 
+            amount, 
+            currency = "USD", 
+            recipientId, 
+            paymentProvider = "switchere",
+            externalPaymentId,
+            metadata = {} 
+        } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ message: "Valid amount is required" });
+        }
+
+        if (!recipientId) {
+            return res.status(400).json({ message: "Recipient ID is required" });
+        }
+
+        // Create transaction with pending status
+        const transactionData = {
+            user: recipientId, // For external payments, the recipient is also the user for tracking
+            recipient: recipientId,
+            type: "external_payment",
+            amount: Number(amount),
+            currency,
+            status: "pending",
+            transactionId: new mongoose.Types.ObjectId().toString(),
+            paymentProvider,
+            externalPaymentId,
+            // Include any additional metadata
+            ...metadata
+        };
+
+        const transaction = await TransactionService.createTransaction(transactionData);
+
+        res.status(201).json({
+            success: true,
+            message: "External payment transaction created",
+            transactionId: transaction._id,
+            transaction: {
+                id: transaction._id,
+                amount: transaction.amount,
+                currency: transaction.currency,
+                status: transaction.status,
+                recipientId: transaction.recipient,
+                createdAt: transaction.createdAt
+            }
+        });
+
+    } catch (error) {
+        console.error("Error creating external payment transaction:", error);
+        res.status(500).json({ 
+            success: false,
+            message: "Failed to create transaction",
+            error: error.message 
+        });
+    }
+};

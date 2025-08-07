@@ -38,3 +38,52 @@ export const updateTransactionStatus = async (transactionId, status) => {
 export const updateTransaction = async (transactionId, updateData) => {
     return await Transaction.findByIdAndUpdate(transactionId, updateData, { new: true });
 };
+
+export const validateTransactionForCredit = async (transactionId) => {
+    try {
+        const transaction = await Transaction.findById(transactionId);
+        
+        if (!transaction) {
+            return { 
+                valid: false, 
+                error: "Transaction not found" 
+            };
+        }
+
+        if (transaction.status !== 'pending') {
+            return { 
+                valid: false, 
+                error: `Transaction status is '${transaction.status}'. Only pending transactions can be credited.` 
+            };
+        }
+
+        return { 
+            valid: true, 
+            transaction 
+        };
+    } catch (error) {
+        return { 
+            valid: false, 
+            error: `Transaction validation failed: ${error.message}` 
+        };
+    }
+};
+
+export const markTransactionCompleted = async (transactionId, additionalData = {}) => {
+    try {
+        const updateData = {
+            status: 'completed',
+            completedAt: new Date(),
+            ...additionalData
+        };
+
+        return await Transaction.findByIdAndUpdate(
+            transactionId, 
+            updateData, 
+            { new: true }
+        );
+    } catch (error) {
+        console.error("Error marking transaction as completed:", error);
+        throw error;
+    }
+};

@@ -5,7 +5,7 @@ const TransactionSchema = new mongoose.Schema({
     recipient: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Payee (who is receiving the payment)
     type: { 
         type: String, 
-        enum: ['subscription', 'tip', 'post_purchase', 'withdrawal', 'chat_purchase'], 
+        enum: ['subscription', 'tip', 'post_purchase', 'withdrawal', 'chat_purchase', 'external_payment'], 
         required: true 
     },
     amount: { type: Number, required: true },
@@ -15,6 +15,8 @@ const TransactionSchema = new mongoose.Schema({
     postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null }, // If payment is for a post
     messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null }, // If payment is for a message/chat
     subscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription', default: null }, // If payment is for a subscription
+    externalPaymentId: { type: String, default: null }, // External payment system reference
+    paymentProvider: { type: String, default: null }, // External payment provider (e.g., 'switchere', 'coinbase')
 }, { timestamps: true });
 
 export default mongoose.model('Transaction', TransactionSchema);

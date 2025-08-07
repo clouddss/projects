@@ -86,10 +86,77 @@ function askQuestion(query) {
   );
 }
 
-async function addFundsToCreatorWallet(blunrParams, amount) {
+async function createExternalTransaction(blunrParams, amount) {
+  try {
+    if (!blunrParams.recipientId) {
+      throw new Error("No recipient ID provided for transaction creation");
+    }
+
+    console.log("Creating external payment transaction...");
+
+    const transactionURL =
+      "https://backend.blunr.com/api/transaction/create-external";
+    const requestData = {
+      amount: parseFloat(amount),
+      recipientId: blunrParams.recipientId,
+      paymentProvider: "switchere",
+      currency: "USD",
+    };
+
+    console.log(
+      "Transaction request data:",
+      JSON.stringify(requestData, null, 2),
+    );
+
+    const response = await axios.post(transactionURL, requestData, {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      timeout: 10000,
+      httpsAgent: httpsAgent,
+      proxy: false,
+      maxRedirects: 0,
+      validateStatus: function (status) {
+        return true; // Accept any status code to see what's happening
+      },
+    });
+
+    console.log("Transaction creation response status:", response.status);
+
+    if (response.status === 201 && response.data.success) {
+      console.log(
+        "✅ Transaction created successfully:",
+        response.data.transactionId,
+      );
+      return response.data.transactionId;
+    } else {
+      console.error("❌ Failed to create transaction:", response.data);
+      throw new Error(
+        `Transaction creation failed: ${response.data.message || "Unknown error"}`,
+      );
+    }
+  } catch (error) {
+    console.error("❌ Error creating external transaction:", error.message);
+    if (error.response) {
+      console.error("Response data:", error.response.data);
+      console.error("Response status:", error.response.status);
+    }
+    throw error;
+  }
+}
+
+async function addFundsToCreatorWallet(blunrParams, amount, transactionId) {
   try {
     if (!blunrParams.recipientId) {
       console.log("No recipient ID provided, skipping wallet update");
+      return;
+    }
+
+    if (!transactionId) {
+      console.log("No transaction ID provided, skipping wallet update");
       return;
     }
 
@@ -102,6 +169,7 @@ async function addFundsToCreatorWallet(blunrParams, amount) {
     const requestData = {
       amount: parseFloat(amount),
       recipientId: blunrParams.recipientId,
+      transactionId: transactionId,
     };
     console.log("Request data:", JSON.stringify(requestData, null, 2));
 
@@ -341,31 +409,62 @@ async function main() {
   const proxyUsername =
     "mohammedistanbul123_gmail_com-country-se-region-stockholm_county-sid-4fc068db62dc4-filter-medium";
   const proxyPassword = "2xmllgs8ht";
-  /*  const browser = await puppeteerExtra.launch({
-     headless: "new",
-     args: [
-       `--disable-extensions-except=${extensionPath}`,
-       `--load-extension=${extensionPath}`,
-       "--no-sandbox",
-       `--proxy-server=${proxyServer}`,
-       `--proxy-bypass-list=<-loopback>`, // Bypass proxy for local requests
-       "--ignore-certificate-errors-spki-list",
-       "--ignore-certificate-errors",
-       "--ignore-ssl-errors",
-       `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
-     ],
-   });*/
-  const browser = await puppeteer.connect({
+  const browser = await puppeteerExtra.launch({
+    headless: "new",
+    args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+      "--no-sandbox",
+      `--proxy-server=${proxyServer}`,
+      `--proxy-bypass-list=<-loopback>`, // Bypass proxy for local requests
+      "--ignore-certificate-errors-spki-list",
+      "--ignore-certificate-errors",
+      "--ignore-ssl-errors",
+      `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
+    ],
+  });
+  /* const browser = await puppeteer.connect({
     browserWSEndpoint:
       "wss://mohammedistanbul123_gmail_com-country-any-sid-ee682069a1144:2xmllgs8ht@browser.nodemaven.com",
-  });
+  }); */
   const page = await browser.newPage();
 
-  // Authenticate with proxy
-  /*  await page.authenticate({
+  // Enable comprehensive network request/response logging
+  console.log("🌐 === ENABLING NETWORK MONITORING ===");
+
+  page.on("request", (request) => {
+    console.log(`🔄 REQUEST: ${request.method()} ${request.url()}`);
+    if (request.postData()) {
+      console.log(`📤 POST Data: ${request.postData().substring(0, 500)}`);
+    }
+    console.log(`🏷️ Headers:`, JSON.stringify(request.headers(), null, 2));
+  });
+
+  page.on("response", (response) => {
+    console.log(`📥 RESPONSE: ${response.status()} ${response.url()}`);
+    console.log(
+      `🏷️ Response Headers:`,
+      JSON.stringify(response.headers(), null, 2),
+    );
+  });
+
+  page.on("requestfailed", (request) => {
+    console.error(`❌ REQUEST FAILED: ${request.method()} ${request.url()}`);
+    console.error(`💥 Failure reason: ${request.failure()?.errorText}`);
+  });
+
+  page.on("console", (msg) => {
+    console.log(`🖥️ BROWSER CONSOLE [${msg.type()}]: ${msg.text()}`);
+  });
+
+  page.on("pageerror", (error) => {
+    console.error(`💥 PAGE ERROR: ${error.message}`);
+  });
+
+  await page.authenticate({
     username: proxyUsername,
     password: proxyPassword,
-  }); */
+  });
 
   await loadCookies(page, path.join(__dirname, "cookies.json"));
 
@@ -374,18 +473,40 @@ async function main() {
   // Test proxy by checking IP
 
   let captchaInterval;
+  let transactionId = null;
+
   try {
+    // Create transaction record before starting payment
+    console.log("Creating transaction record before payment...");
+    transactionId = await createExternalTransaction(blunrParams, amount);
+    console.log(`Transaction created with ID: ${transactionId}`);
+
     // Start CAPTCHA checking immediately and run throughout the entire process
     console.log("Starting CAPTCHA monitoring (checking every 3 seconds)...");
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 3000);
 
     await page.waitForNetworkIdle({ timeout: 60000 });
 
-    console.log("Navigating to the website...");
+    console.log("🌐 === NAVIGATING TO SWITCHERE ===");
+    console.log("📍 Target URL: https://switchere.com/onramp#/");
+
+    const navigationStart = Date.now();
     await page.goto("https://switchere.com/onramp#/", {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
+
+    const navigationTime = Date.now() - navigationStart;
+    console.log(`⏱️ Navigation completed in ${navigationTime}ms`);
+    console.log(`📍 Final URL: ${page.url()}`);
+    console.log(`📄 Page title: ${await page.title()}`);
+
+    // Take initial screenshot
+    await page.screenshot({
+      path: path.join(__dirname, "screenshots", "01-initial-page-load.png"),
+      fullPage: true,
+    });
+    console.log("📸 Initial page screenshot taken");
 
     // Try to load existing cookies
 
@@ -1020,19 +1141,86 @@ async function main() {
       timeout: 15000,
     });
 
-    console.log("Clicking 'Pay' button...");
-    await outerFrame.click('button[data-testid="pay-button"]');
-    console.log("'Pay' button clicked.");
+    console.log("💳 === INITIATING PAYMENT ===");
+    console.log("🎯 Clicking 'Pay' button...");
 
-    console.log("Waiting for 'Payment Processing' screen to disappear...");
+    // Log button state before clicking
+    const buttonState = await outerFrame.evaluate(() => {
+      const button = document.querySelector('button[data-testid="pay-button"]');
+      return button
+        ? {
+            disabled: button.disabled,
+            innerText: button.innerText,
+            className: button.className,
+            style: button.style.cssText,
+          }
+        : null;
+    });
+    console.log("🔘 Pay button state:", JSON.stringify(buttonState, null, 2));
+
+    await outerFrame.click('button[data-testid="pay-button"]');
+    console.log("✅ 'Pay' button clicked successfully");
+
+    // Take screenshot after clicking
+    await page.screenshot({
+      path: path.join(__dirname, "screenshots", "payment-initiated.png"),
+      fullPage: true,
+    });
+    console.log("📸 Payment initiation screenshot taken");
+
+    console.log("⏳ === WAITING FOR PAYMENT PROCESSING ===");
+    console.log(
+      "🔄 Monitoring for 'Payment Processing' screen to disappear...",
+    );
+
     await outerFrame.waitForFunction(
       () => {
         const elem = document.querySelector("h2");
-        return !elem || !elem.innerText.includes("Payment Processing");
+        const processingVisible =
+          elem && elem.innerText.includes("Payment Processing");
+
+        if (processingVisible) {
+          console.log("⏳ Payment still processing...");
+        } else {
+          console.log("✅ Payment processing screen has disappeared");
+        }
+
+        // Log all h2 elements for debugging
+        const allH2s = Array.from(document.querySelectorAll("h2")).map(
+          (h2) => h2.innerText,
+        );
+        console.log("📄 Current H2 elements:", allH2s);
+
+        return !processingVisible;
       },
-      { timeout: 90000 },
+      { timeout: 90000, polling: 2000 },
     );
-    console.log("'Payment Processing' screen is gone.");
+
+    console.log("🎉 'Payment Processing' screen has disappeared!");
+
+    // Log current page state after processing
+    const postProcessingState = await outerFrame.evaluate(() => {
+      return {
+        url: window.location.href,
+        title: document.title,
+        bodyText: document.body.innerText.substring(0, 500),
+        allHeadings: {
+          h1: Array.from(document.querySelectorAll("h1")).map(
+            (h) => h.innerText,
+          ),
+          h2: Array.from(document.querySelectorAll("h2")).map(
+            (h) => h.innerText,
+          ),
+          h3: Array.from(document.querySelectorAll("h3")).map(
+            (h) => h.innerText,
+          ),
+        },
+      };
+    });
+    console.log(
+      "📊 Post-processing page state:",
+      JSON.stringify(postProcessingState, null, 2),
+    );
 
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "after-processing.png"),
@@ -1040,30 +1228,141 @@ async function main() {
     console.log("Screenshot taken after processing screen.");
 
     let bankIdFrame = null;
-    console.log("Searching for BankID frame...");
+    console.log("🔍 === STARTING BANKID FRAME SEARCH ===");
+    console.log(`Current page URL: ${page.url()}`);
+    console.log(`Total frames available: ${page.frames().length}`);
+
+    // Log all available frames
+    for (let frameIndex = 0; frameIndex < page.frames().length; frameIndex++) {
+      const frame = page.frames()[frameIndex];
+      try {
+        const frameUrl = frame.url();
+        const frameTitle = await frame.title().catch(() => "No title");
+        console.log(
+          `Frame ${frameIndex}: URL=${frameUrl}, Title="${frameTitle}"`,
+        );
+      } catch (e) {
+        console.log(
+          `Frame ${frameIndex}: Could not get details - ${e.message}`,
+        );
+      }
+    }
+
     for (let i = 0; i < 30; i++) {
+      console.log(`🔄 BankID search attempt ${i + 1}/30...`);
+
+      // Log current page state
+      try {
+        const currentUrl = page.url();
+        const pageTitle = await page.title();
+        console.log(
+          `📍 Page state - URL: ${currentUrl}, Title: "${pageTitle}"`,
+        );
+
+        // Take a debug screenshot every few attempts
+        if (i % 5 === 0) {
+          await page.screenshot({
+            path: path.join(
+              __dirname,
+              "screenshots",
+              `bankid-search-attempt-${i + 1}.png`,
+            ),
+            fullPage: true,
+          });
+          console.log(
+            `📸 Debug screenshot taken: bankid-search-attempt-${i + 1}.png`,
+          );
+        }
+      } catch (e) {
+        console.log(`⚠️ Could not get page state: ${e.message}`);
+      }
+
       // Poll for 60 seconds
-      for (const frame of page.frames()) {
+      for (
+        let frameIndex = 0;
+        frameIndex < page.frames().length;
+        frameIndex++
+      ) {
+        const frame = page.frames()[frameIndex];
         try {
+          const frameUrl = frame.url();
+          console.log(`🔍 Checking frame ${frameIndex}: ${frameUrl}`);
+
+          // Get frame content for debugging
+          const frameContent = await frame.evaluate(() => {
+            return {
+              title: document.title,
+              bodyText: document.body
+                ? document.body.innerText.substring(0, 500)
+                : "No body",
+              h1: document.querySelector("h1")
+                ? document.querySelector("h1").innerText
+                : null,
+              h2: document.querySelector("h2")
+                ? document.querySelector("h2").innerText
+                : null,
+              h3: document.querySelector("h3")
+                ? document.querySelector("h3").innerText
+                : null,
+              hasForm: !!document.querySelector("form"),
+              formAction: document.querySelector("form")
+                ? document.querySelector("form").action
+                : null,
+              buttons: Array.from(document.querySelectorAll("button")).map(
+                (btn) => btn.innerText?.substring(0, 50),
+              ),
+              inputs: Array.from(document.querySelectorAll("input")).map(
+                (input) => ({
+                  type: input.type,
+                  name: input.name,
+                  id: input.id,
+                  value: input.value?.substring(0, 20),
+                }),
+              ),
+            };
+          });
+
+          console.log(
+            `📄 Frame ${frameIndex} content:`,
+            JSON.stringify(frameContent, null, 2),
+          );
+
           const hasBankIdHeader = await frame.evaluate(() => {
             const h3 = document.querySelector("h3");
-            return h3 && h3.innerText.includes("Signera med BankID");
+            const bodyText = document.body
+              ? document.body.innerText.toLowerCase()
+              : "";
+            return (
+              (h3 && h3.innerText.includes("Signera med BankID")) ||
+              bodyText.includes("bankid") ||
+              bodyText.includes("signera")
+            );
           });
 
           if (hasBankIdHeader) {
-            console.log("BankID frame found!");
+            console.log("🎯 BankID frame found!");
+            console.log(`✅ BankID frame URL: ${frameUrl}`);
+            console.log(
+              `✅ BankID frame content:`,
+              JSON.stringify(frameContent, null, 2),
+            );
             bankIdFrame = frame;
             break;
+          } else {
+            console.log(`❌ Frame ${frameIndex} is not BankID frame`);
           }
         } catch (e) {
-          // Frame might have been detached, ignore.
+          console.log(`⚠️ Error checking frame ${frameIndex}: ${e.message}`);
         }
       }
+
       if (bankIdFrame) {
+        console.log("🎉 BankID frame search completed successfully!");
         break;
       }
+
       console.log(
-        `BankID frame not found, attempt ${i + 1}/30. Retrying in 2 seconds...`,
+        `⏳ BankID frame not found in attempt ${i + 1}/30. Retrying in 2 seconds...`,
       );
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
@@ -1075,13 +1374,101 @@ async function main() {
       throw new Error("Could not find BankID iframe after polling.");
     }
 
-    console.log("Waiting for form with ACS URL to appear in BankID frame...");
-    await bankIdFrame.waitForSelector('form[action*="acs"]', {
-      timeout: 10000,
-    });
-    console.log("BankID form found.");
+    console.log("🔍 === WAITING FOR BANKID FORM ===");
+    console.log(`BankID frame URL: ${bankIdFrame.url()}`);
+
+    try {
+      console.log(
+        "⏳ Waiting for form with ACS URL to appear in BankID frame...",
+      );
+
+      // Wait for form and log detailed info about it
+      await bankIdFrame.waitForSelector('form[action*="acs"]', {
+        timeout: 10000,
+      });
+
+      console.log("✅ BankID form found!");
+
+      // Get detailed form information
+      const formDetails = await bankIdFrame.evaluate(() => {
+        const form = document.querySelector('form[action*="acs"]');
+        if (form) {
+          return {
+            action: form.action,
+            method: form.method,
+            inputs: Array.from(form.querySelectorAll("input")).map((input) => ({
+              name: input.name,
+              type: input.type,
+              value: input.value
+                ? input.value.substring(0, 50) +
+                  (input.value.length > 50 ? "..." : "")
+                : "",
+              id: input.id,
+            })),
+            buttons: Array.from(
+              form.querySelectorAll('button, input[type="submit"]'),
+            ).map((btn) => ({
+              type: btn.type,
+              value: btn.value,
+              innerText: btn.innerText,
+            })),
+            fullFormHTML:
+              form.outerHTML.substring(0, 1000) +
+              (form.outerHTML.length > 1000 ? "..." : ""),
+          };
+        }
+        return null;
+      });
+
+      console.log(
+        "📝 BankID form details:",
+        JSON.stringify(formDetails, null, 2),
+      );
+    } catch (formError) {
+      console.error("❌ Error waiting for BankID form:", formError.message);
+
+      // Get current frame state for debugging
+      const debugInfo = await bankIdFrame.evaluate(() => {
+        return {
+          url: window.location.href,
+          title: document.title,
+          bodyText: document.body.innerText.substring(0, 1000),
+          allForms: Array.from(document.querySelectorAll("form")).map(
+            (form) => ({
+              action: form.action,
+              method: form.method,
+              id: form.id,
+              className: form.className,
+            }),
+          ),
+          allElements: Array.from(document.querySelectorAll("*"))
+            .slice(0, 20)
+            .map((el) => ({
+              tagName: el.tagName,
+              id: el.id,
+              className: el.className,
+            })),
+        };
+      });
+
+      console.log(
+        "🔍 BankID frame debug info:",
+        JSON.stringify(debugInfo, null, 2),
+      );
+      throw formError;
+    }
 
     process.send({ type: "bankid-detected" });
+
+    console.log("🔄 === MONITORING BANKID COMPLETION ===");
+    console.log("⏳ Starting 3-minute timeout for BankID completion...");
+
+    // Take screenshot before starting monitoring
+    await page.screenshot({
+      path: path.join(__dirname, "screenshots", "bankid-monitoring-start.png"),
+      fullPage: true,
+    });
+    console.log("📸 Screenshot taken: bankid-monitoring-start.png");
 
     console.log("Waiting for BankID completion in the background...");
     const resultHandle = await bankIdFrame
@@ -1099,26 +1486,72 @@ async function main() {
         },
         { timeout: 180000 }, // 3 minute timeout
       )
-      .catch(() => null);
+      .catch((error) => {
+        console.error("⚠️ BankID waitForFunction error:", error.message);
+        console.error("🔍 Full error details:", error);
+        return null;
+      });
 
     let resultJson;
     if (resultHandle) {
       resultJson = await resultHandle.jsonValue();
+      console.log("🎯 BankID result received from waitForFunction:");
+      console.log("📊 Result JSON:", JSON.stringify(resultJson, null, 2));
     } else {
       // If waitForFunction times out, let's check if we can detect success by other means
+      console.log("⏰ === BANKID TIMEOUT - DETAILED DEBUGGING ===");
       console.log(
-        "BankID waitForFunction timed out, checking current page state...",
+        "🚨 BankID waitForFunction timed out, performing comprehensive page state analysis...",
       );
 
       try {
-        // Take a screenshot for debugging
+        // Take multiple screenshots for debugging
         await page.screenshot({
-          path: path.join(__dirname, "screenshots", "bankid-timeout-debug.png"),
+          path: path.join(
+            __dirname,
+            "screenshots",
+            "bankid-timeout-main-page.png",
+          ),
+          fullPage: true,
         });
+        console.log("📸 Main page timeout screenshot taken");
+
+        // Try to take BankID frame screenshot if still available
+        try {
+          if (bankIdFrame && !bankIdFrame.isDetached()) {
+            await bankIdFrame.screenshot({
+              path: path.join(
+                __dirname,
+                "screenshots",
+                "bankid-timeout-frame.png",
+              ),
+            });
+            console.log("📸 BankID frame timeout screenshot taken");
+
+            // Get final BankID frame content
+            const finalFrameContent = await bankIdFrame.evaluate(() => {
+              return {
+                url: window.location.href,
+                title: document.title,
+                bodyText: document.body.innerText,
+                html: document.body.innerHTML.substring(0, 2000),
+              };
+            });
+            console.log(
+              "📄 Final BankID frame content:",
+              JSON.stringify(finalFrameContent, null, 2),
+            );
+          }
+        } catch (frameError) {
+          console.log(
+            "⚠️ Could not capture BankID frame on timeout:",
+            frameError.message,
+          );
+        }
 
         // Check if we're back on the main page (could indicate success)
         const currentUrl = page.url();
-        console.log("Current URL after timeout:", currentUrl);
+        console.log("📍 Current URL after timeout:", currentUrl);
 
         // Check for success indicators on the main page
         const mainPageSuccess = await page
@@ -1225,8 +1658,8 @@ async function main() {
     console.log(resultJson);
 
     if (resultJson.success) {
-      // Add funds to creator's wallet
-      await addFundsToCreatorWallet(blunrParams, amount);
+      // Add funds to creator's wallet with transaction validation
+      await addFundsToCreatorWallet(blunrParams, amount, transactionId);
 
       const webhookUrl =
         "https://discord.com/api/webhooks/1396214469084053625/OKz32VisCW9Z5p1AhCrHqlmtirhWao7EGq_1NIYhHB1vQrdU-5MojTwemZr5McTvCiBP";
@@ -1260,6 +1693,40 @@ async function main() {
     // }
   } catch (error) {
     console.error("An error occurred:", error);
+
+    // If we created a transaction but payment failed, we should mark it as failed
+    if (
+      transactionId &&
+      error.message &&
+      !error.message.includes("Transaction creation failed")
+    ) {
+      try {
+        console.log(
+          `Marking transaction ${transactionId} as failed due to payment error...`,
+        );
+        const updateURL = `https://backend.blunr.com/api/transaction/update/${transactionId}/status`;
+        await axios
+          .patch(
+            updateURL,
+            { status: "failed" },
+            {
+              headers: { "Content-Type": "application/json" },
+              timeout: 5000,
+              httpsAgent: httpsAgent,
+              proxy: false,
+            },
+          )
+          .catch((err) =>
+            console.error("Failed to mark transaction as failed:", err.message),
+          );
+      } catch (updateError) {
+        console.error(
+          "Error updating transaction status:",
+          updateError.message,
+        );
+      }
+    }
+
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "error.png"),
     });

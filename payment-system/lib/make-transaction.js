@@ -1075,6 +1075,53 @@ async function main() {
             break;
           }
           
+          // If button is stuck in loading state after 5 attempts, check for form validation issues
+          if (attempt >= 4 && buttonState && buttonState.hasLoader) {
+            console.log("🔍 Button stuck in loading state - checking form validation...");
+            
+            const formValidation = await page.evaluate(() => {
+              // Check if wallet address input is filled and valid
+              const walletInput = document.querySelector('input[name="wallet"]');
+              const form = document.querySelector('form.address-step');
+              
+              return {
+                walletValue: walletInput ? walletInput.value : 'not found',
+                walletValid: walletInput ? walletInput.checkValidity() : false,
+                formValid: form ? form.checkValidity() : false,
+                requiredFields: Array.from(document.querySelectorAll('input[required]')).map(input => ({
+                  name: input.name,
+                  value: input.value,
+                  valid: input.checkValidity()
+                }))
+              };
+            });
+            
+            console.log("📋 Form validation state:", JSON.stringify(formValidation, null, 2));
+            
+            // If form seems valid but button still loading, force click it anyway
+            if (formValidation.walletValue && formValidation.walletValue.length > 10) {
+              console.log("💪 Form appears valid - forcing button click despite loading state...");
+              
+              await page.evaluate(() => {
+                const buttons = Array.from(document.querySelectorAll("button"));
+                const buyButton = buttons.find(b => b.textContent?.includes("Buy"));
+                if (buyButton) {
+                  // Remove loading classes and click
+                  buyButton.classList.remove('ld-over');
+                  const loader = buyButton.querySelector('.ld');
+                  if (loader) loader.remove();
+                  buyButton.click();
+                  return true;
+                }
+                return false;
+              });
+              
+              buyButtonClicked = true;
+              console.log("✅ Forced click on Buy button");
+              break;
+            }
+          }
+          
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
       } catch (error) {

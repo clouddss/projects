@@ -202,9 +202,6 @@ async function addFundsToCreatorWallet(blunrParams, amount, transactionId) {
       },
     });
 
-    console.log("Response status:", response.status);
-    console.log("Response headers:", response.headers);
-
     if (response.status === 301 || response.status === 302) {
       console.log("Redirect detected. Location:", response.headers.location);
     }
@@ -395,7 +392,9 @@ async function solveCaptchaIfNeeded(page) {
 
 // Helper function to add random delays (more human-like)
 function randomDelay(min = 500, max = 2000) {
-  return new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min));
+  return new Promise((resolve) =>
+    setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min),
+  );
 }
 
 // Helper function to type text with human-like delays
@@ -404,19 +403,19 @@ async function typeWithDelay(page, selector, text, options = {}) {
   if (!element) {
     throw new Error(`Element not found: ${selector}`);
   }
-  
+
   // Clear existing content first
   await element.click({ clickCount: 3 });
-  await page.keyboard.press('Backspace');
-  
+  await page.keyboard.press("Backspace");
+
   // Random delay before typing
   await randomDelay(200, 500);
-  
+
   // Type each character with random delay
   for (const char of text) {
     await page.type(selector, char, { delay: Math.random() * 100 + 50 });
     // Occasionally pause longer between words
-    if (char === ' ' && Math.random() > 0.7) {
+    if (char === " " && Math.random() > 0.7) {
       await randomDelay(100, 300);
     }
   }
@@ -436,16 +435,16 @@ async function humanClick(page, selector) {
   if (!element) {
     throw new Error(`Element not found for clicking: ${selector}`);
   }
-  
+
   const box = await element.boundingBox();
   if (!box) {
     throw new Error(`Element has no bounding box: ${selector}`);
   }
-  
+
   // Click somewhere random within the element
-  const x = box.x + (box.width * 0.3) + (Math.random() * box.width * 0.4);
-  const y = box.y + (box.height * 0.3) + (Math.random() * box.height * 0.4);
-  
+  const x = box.x + box.width * 0.3 + Math.random() * box.width * 0.4;
+  const y = box.y + box.height * 0.3 + Math.random() * box.height * 0.4;
+
   // Move mouse to element first
   await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
   await randomDelay(100, 300);
@@ -471,9 +470,9 @@ async function main() {
   const extensionPath = path.join(process.cwd(), "buster-extension");
 
   // Generate random user agent
-  const userAgent = new UserAgent({ 
-    deviceCategory: 'desktop',
-    platform: 'Win32' // Use Windows to be more common
+  const userAgent = new UserAgent({
+    deviceCategory: "desktop",
+    platform: "Win32", // Use Windows to be more common
   });
   const randomUserAgent = userAgent.toString();
   console.log(`🎭 Using User Agent: ${randomUserAgent}`);
@@ -503,71 +502,44 @@ async function main() {
       "wss://mohammedistanbul123_gmail_com-country-any-sid-ee682069a1144:2xmllgs8ht@browser.nodemaven.com",
   }); */
   const page = await browser.newPage();
-  
+
   // Set random viewport size (common desktop resolutions)
   const viewports = [
     { width: 1920, height: 1080 },
     { width: 1366, height: 768 },
     { width: 1536, height: 864 },
     { width: 1440, height: 900 },
-    { width: 1280, height: 720 }
+    { width: 1280, height: 720 },
   ];
-  const randomViewport = viewports[Math.floor(Math.random() * viewports.length)];
+  const randomViewport =
+    viewports[Math.floor(Math.random() * viewports.length)];
   await page.setViewport(randomViewport);
-  console.log(`📐 Using viewport: ${randomViewport.width}x${randomViewport.height}`);
-  
+  console.log(
+    `📐 Using viewport: ${randomViewport.width}x${randomViewport.height}`,
+  );
+
   // Override navigator properties to appear more human
   await page.evaluateOnNewDocument(() => {
     // Override the navigator.webdriver property
-    Object.defineProperty(navigator, 'webdriver', {
-      get: () => undefined
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => undefined,
     });
-    
+
     // Add some noise to plugins
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => [1, 2, 3, 4, 5]
+    Object.defineProperty(navigator, "plugins", {
+      get: () => [1, 2, 3, 4, 5],
     });
-    
+
     // Override permissions
     const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (parameters) => (
-      parameters.name === 'notifications' ?
-        Promise.resolve({ state: Notification.permission }) :
-        originalQuery(parameters)
-    );
+    window.navigator.permissions.query = (parameters) =>
+      parameters.name === "notifications"
+        ? Promise.resolve({ state: Notification.permission })
+        : originalQuery(parameters);
   });
 
   // Enable comprehensive network request/response logging
   console.log("🌐 === ENABLING NETWORK MONITORING ===");
-
-  page.on("request", (request) => {
-    console.log(`🔄 REQUEST: ${request.method()} ${request.url()}`);
-    if (request.postData()) {
-      console.log(`📤 POST Data: ${request.postData().substring(0, 500)}`);
-    }
-    console.log(`🏷️ Headers:`, JSON.stringify(request.headers(), null, 2));
-  });
-
-  page.on("response", (response) => {
-    console.log(`📥 RESPONSE: ${response.status()} ${response.url()}`);
-    console.log(
-      `🏷️ Response Headers:`,
-      JSON.stringify(response.headers(), null, 2),
-    );
-  });
-
-  page.on("requestfailed", (request) => {
-    console.error(`❌ REQUEST FAILED: ${request.method()} ${request.url()}`);
-    console.error(`💥 Failure reason: ${request.failure()?.errorText}`);
-  });
-
-  page.on("console", (msg) => {
-    console.log(`🖥️ BROWSER CONSOLE [${msg.type()}]: ${msg.text()}`);
-  });
-
-  page.on("pageerror", (error) => {
-    console.error(`💥 PAGE ERROR: ${error.message}`);
-  });
 
   await page.authenticate({
     username: proxyUsername,
@@ -593,8 +565,6 @@ async function main() {
     console.log("Starting CAPTCHA monitoring (checking every 3 seconds)...");
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 3000);
 
-    await page.waitForNetworkIdle({ timeout: 60000 });
-
     console.log("🌐 === NAVIGATING TO SWITCHERE ===");
     console.log("📍 Target URL: https://switchere.com/onramp#/");
 
@@ -602,13 +572,10 @@ async function main() {
     const navigationStart = Date.now();
     let navigationSuccess = false;
     let retries = 3;
-    
+
     while (retries > 0 && !navigationSuccess) {
       try {
-        await page.goto("https://switchere.com/onramp#/", {
-          waitUntil: "domcontentloaded", // Less strict than networkidle2
-          timeout: 90000, // Increase to 90 seconds
-        });
+        await page.goto("https://switchere.com/onramp#/");
         navigationSuccess = true;
       } catch (navError) {
         console.log(`⚠️ Navigation attempt failed: ${navError.message}`);
@@ -628,16 +595,8 @@ async function main() {
 
     try {
       // Wait for page to fully load
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
 
       // Additional wait for dynamic content
-      await page
-        .waitForFunction(() => document.readyState === "complete", {
-          timeout: 10000,
-        })
-        .catch(() => {
-          console.log("Document ready timeout, continuing anyway...");
-        });
 
       // Take a debug screenshot
       await page.screenshot({
@@ -1008,38 +967,38 @@ async function main() {
     }
 
     console.log("Entering wallet address...");
-    
+
     // Wait for page to be ready and wallet input to appear
     try {
-      await page.waitForSelector('input[name="wallet"]', { 
+      await page.waitForSelector('input[name="wallet"]', {
         visible: true,
-        timeout: 45000 // 45 seconds timeout
+        timeout: 45000, // 45 seconds timeout
       });
-      
+
       // Add random mouse movement before interacting
       await randomMouseMovement(page);
       await randomDelay(500, 1500);
-      
+
       // Use human-like typing for wallet address
       await typeWithDelay(page, 'input[name="wallet"]', walletAddress);
       console.log("Wallet address entered.");
-      
+
       // Random delay after typing
       await randomDelay(500, 1000);
     } catch (walletError) {
       console.error("❌ Failed to find wallet input field");
       console.error("Error:", walletError.message);
-      
+
       // Take screenshot for debugging
       await page.screenshot({
         path: path.join(__dirname, "screenshots", "wallet-error.png"),
-        fullPage: true
+        fullPage: true,
       });
-      
+
       // Check if we're on the right page
       const currentUrl = page.url();
       console.log("Current URL:", currentUrl);
-      
+
       throw walletError;
     }
 
@@ -1398,19 +1357,25 @@ async function main() {
         console.log(
           `📍 Page state - URL: ${currentUrl}, Title: "${pageTitle}"`,
         );
-        
+
         // Check for 3DS authentication failure or payment errors
-        if (currentUrl.includes('status=three_ds_not_authenticated') || 
-            currentUrl.includes('error_code=') ||
-            currentUrl.includes('payment-failed') ||
-            currentUrl.includes('transaction-declined')) {
-          console.log('❌ Payment failed - 3DS authentication error or transaction declined');
+        if (
+          currentUrl.includes("status=three_ds_not_authenticated") ||
+          currentUrl.includes("error_code=") ||
+          currentUrl.includes("payment-failed") ||
+          currentUrl.includes("transaction-declined")
+        ) {
+          console.log(
+            "❌ Payment failed - 3DS authentication error or transaction declined",
+          );
           console.log(`Failed URL: ${currentUrl}`);
           await page.screenshot({
             path: path.join(__dirname, "screenshots", "payment-failed-3ds.png"),
             fullPage: true,
           });
-          throw new Error('Payment failed at 3DS authentication stage - cannot proceed to BankID');
+          throw new Error(
+            "Payment failed at 3DS authentication stage - cannot proceed to BankID",
+          );
         }
 
         // Take a debug screenshot every few attempts

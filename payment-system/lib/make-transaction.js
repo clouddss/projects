@@ -6,10 +6,6 @@ const axios = require("axios");
 const https = require("https");
 puppeteerExtra.use(Stealth());
 const fs = require("fs");
-// const UserAgent = require("user-agents");
-
-// Import simple payment check function
-const { checkPaymentStatus } = require("./simple-payment-check.js");
 
 // Load Bright Data SSL certificate
 const brightDataCert = fs.readFileSync(
@@ -433,13 +429,24 @@ async function main() {
   }); */
   const page = await browser.newPage();
 
-  const randomUserAgent =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  // Enable comprehensive network request/response logging
+  console.log("🌐 === ENABLING NETWORK MONITORING ===");
 
-  await page.setUserAgent(randomUserAgent);
+  page.on("request", (request) => {
+    console.log(`🔄 REQUEST: ${request.method()} ${request.url()}`);
+    if (request.postData()) {
+      console.log(`📤 POST Data: ${request.postData().substring(0, 500)}`);
+    }
+    console.log(`🏷️ Headers:`, JSON.stringify(request.headers(), null, 2));
+  });
 
-  // Using simplified payment detection - no complex network monitoring needed
-  console.log("🎯 Using simplified payment detection approach");
+  page.on("response", (response) => {
+    console.log(`📥 RESPONSE: ${response.status()} ${response.url()}`);
+    console.log(
+      `🏷️ Response Headers:`,
+      JSON.stringify(response.headers(), null, 2),
+    );
+  });
 
   page.on("requestfailed", (request) => {
     console.error(`❌ REQUEST FAILED: ${request.method()} ${request.url()}`);
@@ -478,24 +485,16 @@ async function main() {
     console.log("Starting CAPTCHA monitoring (checking every 3 seconds)...");
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 3000);
 
+    await page.waitForNetworkIdle({ timeout: 60000 });
+
     console.log("🌐 === NAVIGATING TO SWITCHERE ===");
     console.log("📍 Target URL: https://switchere.com/onramp#/");
 
     const navigationStart = Date.now();
-    console.log(
-      "🚀 Starting navigation with domcontentloaded wait condition...",
-    );
-
-    try {
-      await page.goto("https://switchere.com/onramp#/", {
-        waitUntil: "networkidle0",
-        timeout: 10000,
-      });
-      console.log("✅ Page navigation successful");
-    } catch (error) {
-      console.log("⚠️ Navigation error:", error.message);
-      console.log("🔄 Attempting to continue anyway...");
-    }
+    await page.goto("https://switchere.com/onramp#/", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
 
     const navigationTime = Date.now() - navigationStart;
     console.log(`⏱️ Navigation completed in ${navigationTime}ms`);
@@ -1471,22 +1470,517 @@ async function main() {
     });
     console.log("📸 Screenshot taken: bankid-monitoring-start.png");
 
-    // Import the simple payment check
-    console.log("🎯 Using simplified payment detection approach...");
+    // Set up network monitoring for success indicators
+    let networkSuccessDetected = false;
+    let networkSuccessDetails = null;
 
-    // Use the ultra-simple payment status check (2 minutes max wait)
-    const resultJson = await checkPaymentStatus(page, outerFrame, 120000);
+    page.on("response", (response) => {
+      const url = response.url();
+      try {
+        // Monitor for FINAL payment success indicators (not just 3DS auth success)
+        // Only consider URLs that indicate final payment completion
+        const isFinalPaymentSuccess =
+          (url.includes("/payment-success") ||
+            url.includes("/transaction-success") ||
+            url.includes("/deposit-success") ||
+            url.includes("/completed") ||
+            url.includes("payment_status=completed") ||
+            url.includes("status=success") ||
+            // Switchere payment completion pattern (only if response indicates success)
+            (url.includes("switchere.com/onramp/o/") &&
+              response.status() === 200 &&
+              !url.includes("initiate"))) &&
+          !url.includes("3ds") && // Exclude 3DS-related URLs
+          !url.includes("auth"); // Exclude auth-related URLs
+
+        // For continue-transaction API calls, check the actual response content
+        const isContinueTransactionSuccess =
+          url.includes("continue-transaction") && response.status() === 200;
+
+        // For PayBis transaction status API, we need to check the response body
+        const isPayBisTransactionCheck =
+          url.includes("api.paybis.com/public/transaction/v2/") &&
+          response.status() === 200;
+
+        if (isFinalPaymentSuccess) {
+          console.log("🎯 FINAL PAYMENT SUCCESS DETECTED IN NETWORK RESPONSE!");
+          console.log("🌐 Success URL:", url);
+          console.log("📡 Response status:", response.status());
+
+          networkSuccessDetected = true;
+          networkSuccessDetails = {
+            url: url,
+            status: response.status(),
+            timestamp: new Date().toISOString(),
+            type: "final_payment_success",
+          };
+        } else if (isContinueTransactionSuccess) {
+          // For continue-transaction calls, we need to examine the response body
+          console.log("🔍 CONTINUE-TRANSACTION API CALL DETECTED");
+          console.log("📞 API URL:", url);
+          console.log("📡 Response status:", response.status());
+
+          // We'll check the response content in a separate handler
+          // This is just logging for now
+        } else if (isPayBisTransactionCheck) {
+          // Log PayBis transaction status check for analysis
+          console.log("🔍 PAYBIS TRANSACTION STATUS CHECK DETECTED");
+          console.log("📞 PayBis API URL:", url);
+          console.log("📡 Response status:", response.status());
+
+          // Try to read response body to check payment status
+          response
+            .text()
+            .then((responseBody) => {
+              try {
+                const payBisData = JSON.parse(responseBody);
+                console.log(
+                  "📊 PayBis response data:",
+                  JSON.stringify(payBisData, null, 2),
+                );
+
+                if (
+                  payBisData.payment &&
+                  payBisData.payment.status === "complete" &&
+                  !payBisData.payment.is_refused &&
+                  !payBisData.payment.is_error
+                ) {
+                  console.log(
+                    "🎯 PAYBIS PAYMENT STATUS: COMPLETE - Final payment success confirmed!",
+                  );
+
+                  // Set network success detected
+                  networkSuccessDetected = true;
+                  networkSuccessDetails = {
+                    url: url,
+                    status: response.status(),
+                    timestamp: new Date().toISOString(),
+                    type: "final_payment_success",
+                    provider: "paybis",
+                    paymentStatus: payBisData.payment.status,
+                    invoiceStatus: payBisData.status,
+                  };
+                } else {
+                  console.log("⚠️ PayBis payment not yet complete:", {
+                    paymentStatus: payBisData.payment?.status,
+                    invoiceStatus: payBisData.status,
+                    isRefused: payBisData.payment?.is_refused,
+                    isError: payBisData.payment?.is_error,
+                  });
+                }
+              } catch (e) {
+                console.log(
+                  "⚠️ Could not parse PayBis response JSON:",
+                  e.message,
+                );
+              }
+            })
+            .catch((e) => {
+              console.log("⚠️ Could not read PayBis response body:", e.message);
+            });
+        } else if (url.includes("switchere.com/onramp/o/")) {
+          // Log Switchere payment calls for analysis
+          console.log("🔍 SWITCHERE PAYMENT CALL DETECTED");
+          console.log("📞 Switchere URL:", url);
+          console.log("📡 Response status:", response.status());
+          console.log("🔄 Request method:", response.request().method());
+          console.log(
+            "⚠️ Analyzing if this indicates final payment completion...",
+          );
+        } else if (url.includes("param=Y") || url.includes("transStatus=Y")) {
+          // Log 3DS success but don't treat it as final payment success
+          console.log(
+            "ℹ️ 3DS AUTHENTICATION SUCCESS DETECTED (not final payment)",
+          );
+          console.log("🔐 3DS Auth URL:", url);
+          console.log(
+            "⚠️ This is NOT final payment success - waiting for payment completion...",
+          );
+        }
+      } catch (error) {
+        // Ignore errors in response monitoring
+      }
+    });
+
+    console.log("Waiting for BankID completion in the background...");
+    const resultHandle = await bankIdFrame
+      .waitForFunction(
+        () => {
+          const bodyText = document.body.innerText;
+          if (bodyText.includes("Signatur mottagen")) return { success: true };
+          if (
+            bodyText.includes("Tiden är löpt ut") ||
+            bodyText.includes("Användaren avbröt") ||
+            bodyText.includes("Okänt fel")
+          )
+            return { success: false, error: "BankID failed or was cancelled." };
+          return false;
+        },
+        { timeout: 180000 }, // 3 minute timeout
+      )
+      .catch((error) => {
+        console.error("⚠️ BankID waitForFunction error:", error.message);
+        console.error("🔍 Full error details:", error);
+
+        // Check if error is due to iframe closure (common with BankID success)
+        if (
+          error.message.includes("Session closed") ||
+          error.message.includes("iframe has been closed") ||
+          error.message.includes("Protocol error")
+        ) {
+          console.log(
+            "🔍 IFRAME CLOSURE DETECTED - This often indicates BankID success!",
+          );
+          console.log(
+            "✅ Iframe closed unexpectedly, checking for network success indicators...",
+          );
+
+          if (
+            networkSuccessDetected &&
+            networkSuccessDetails?.type === "final_payment_success"
+          ) {
+            console.log(
+              "🎯 FINAL payment success was detected, treating iframe closure as success!",
+            );
+            console.log(
+              "📊 Final payment success details:",
+              JSON.stringify(networkSuccessDetails, null, 2),
+            );
+            return { success: true, source: "network_and_iframe_closure" };
+          } else if (networkSuccessDetected) {
+            console.log(
+              "⚠️ Only 3DS auth success detected, not final payment success",
+            );
+            console.log(
+              "🔍 Iframe closure with 3DS success does not guarantee payment success",
+            );
+            console.log(
+              "📊 Network details:",
+              JSON.stringify(networkSuccessDetails, null, 2),
+            );
+            // Don't return success - continue with normal timeout handling
+          }
+        }
+
+        return null;
+      });
+
+    let resultJson;
+    if (resultHandle) {
+      // Handle both JSHandle (from page evaluation) and plain objects (from enhanced detection)
+      if (typeof resultHandle.jsonValue === "function") {
+        resultJson = await resultHandle.jsonValue();
+        console.log(
+          "🎯 BankID result received from waitForFunction (JSHandle):",
+        );
+      } else {
+        resultJson = resultHandle;
+        console.log(
+          "🎯 BankID result received from enhanced detection (plain object):",
+        );
+      }
+      console.log("📊 Result JSON:", JSON.stringify(resultJson, null, 2));
+    } else {
+      // If waitForFunction times out, let's check if we can detect success by other means
+      console.log("⏰ === BANKID TIMEOUT - DETAILED DEBUGGING ===");
+      console.log(
+        "🚨 BankID waitForFunction timed out, performing comprehensive page state analysis...",
+      );
+
+      try {
+        // Take multiple screenshots for debugging
+        await page.screenshot({
+          path: path.join(
+            __dirname,
+            "screenshots",
+            "bankid-timeout-main-page.png",
+          ),
+          fullPage: true,
+        });
+        console.log("📸 Main page timeout screenshot taken");
+
+        // Try to take BankID frame screenshot if still available
+        try {
+          if (bankIdFrame && !bankIdFrame.isDetached()) {
+            await bankIdFrame.screenshot({
+              path: path.join(
+                __dirname,
+                "screenshots",
+                "bankid-timeout-frame.png",
+              ),
+            });
+            console.log("📸 BankID frame timeout screenshot taken");
+
+            // Get final BankID frame content
+            const finalFrameContent = await bankIdFrame.evaluate(() => {
+              return {
+                url: window.location.href,
+                title: document.title,
+                bodyText: document.body.innerText,
+                html: document.body.innerHTML.substring(0, 2000),
+              };
+            });
+            console.log(
+              "📄 Final BankID frame content:",
+              JSON.stringify(finalFrameContent, null, 2),
+            );
+          }
+        } catch (frameError) {
+          console.log(
+            "⚠️ Could not capture BankID frame on timeout:",
+            frameError.message,
+          );
+        }
+
+        // Check if we're back on the main page (could indicate success)
+        const currentUrl = page.url();
+        console.log("📍 Current URL after timeout:", currentUrl);
+
+        // Check for success indicators on the main page
+        const mainPageSuccess = await page
+          .evaluate(() => {
+            const bodyText = document.body.innerText.toLowerCase();
+            return (
+              bodyText.includes("success") ||
+              bodyText.includes("complete") ||
+              bodyText.includes("thank") ||
+              bodyText.includes("framgång")
+            );
+          })
+          .catch(() => false);
+
+        // Check all success indicators: main page content, network responses, and URL patterns
+        if (mainPageSuccess || networkSuccessDetected) {
+          if (mainPageSuccess) {
+            console.log(
+              "✅ Success detected on main page after BankID timeout",
+            );
+          }
+          if (networkSuccessDetected) {
+            console.log(
+              "✅ Success detected in network responses after BankID timeout",
+            );
+            console.log(
+              "📊 Network success details:",
+              JSON.stringify(networkSuccessDetails, null, 2),
+            );
+          }
+          resultJson = {
+            success: true,
+            source: mainPageSuccess ? "main_page" : "network_response",
+          };
+        } else {
+          resultJson = {
+            success: false,
+            error: "BankID verification timed out.",
+          };
+        }
+      } catch (error) {
+        console.error("Error during timeout handling:", error);
+        resultJson = {
+          success: false,
+          error: "BankID verification timed out.",
+        };
+      }
+    }
 
     console.log(
-      `Payment verification finished with status: ${resultJson.success}`,
+      `BankID verification finished with status: ${resultJson.success}`,
     );
-    console.log(
-      "Simple payment check result:",
-      JSON.stringify(resultJson, null, 2),
-    );
+    console.log("Full result object:", JSON.stringify(resultJson, null, 2));
 
-    // Simple payment check already handled everything - no additional checks needed
-    console.log("✅ Using simple payment check result as final status");
+    // Check for error toast in the main page (appears after BankID completes)
+    console.log(
+      "🔍 Checking for payment error toasts after BankID completion...",
+    );
+    try {
+      const hasPostBankIdErrorToast = await outerFrame
+        .evaluate(() => {
+          // Check for PayBis error toast that appears after BankID
+          const errorToast = document.querySelector(
+            ".widget-content-toast--error",
+          );
+          if (errorToast) {
+            const toastText = errorToast.textContent.toLowerCase();
+            console.log("🚨 Post-BankID error toast detected:", toastText);
+            return (
+              toastText.includes("declined") ||
+              toastText.includes("contact your bank") ||
+              toastText.includes("payment has been declined")
+            );
+          }
+
+          // Also check for other error indicators that appear after BankID
+          const pageText = document.body.textContent.toLowerCase();
+          return (
+            pageText.includes("the payment has been declined") ||
+            pageText.includes("please contact your bank") ||
+            pageText.includes("betalningen har avvisats")
+          );
+        })
+        .catch(() => false);
+
+      if (hasPostBankIdErrorToast) {
+        console.log(
+          "🚨 ERROR TOAST DETECTED: Payment was declined by bank after BankID success",
+        );
+        console.log(
+          "❌ Overriding any success status - payment failed due to bank decline",
+        );
+        resultJson = {
+          success: false,
+          error: "Payment declined by bank after BankID authentication",
+          source: "post_bankid_error_toast",
+        };
+      }
+    } catch (e) {
+      console.log(
+        "⚠️ Could not check for post-BankID error toasts:",
+        e.message,
+      );
+    }
+
+    // Additional success check - only override failure if we have explicit success indicators
+    if (!resultJson.success) {
+      console.log(
+        "Payment marked as failed, checking for explicit success indicators...",
+      );
+
+      try {
+        // Check if we've been redirected to a success page
+        const currentUrl = page.url();
+        console.log("Current page URL:", currentUrl);
+
+        // Take a screenshot for debugging
+        await page.screenshot({
+          path: path.join(
+            __dirname,
+            "screenshots",
+            "payment-completion-debug.png",
+          ),
+        });
+
+        // Check main page for explicit success indicators
+        const pageContent = await page
+          .evaluate(() => document.body.innerText.toLowerCase())
+          .catch(() => "");
+        console.log("Page content preview:", pageContent.substring(0, 500));
+
+        // Enhanced success detection - STRICT criteria to avoid false positives
+        // Only consider FINAL payment success indicators, not just 3DS auth success
+        const hasSuccessIndicators =
+          // FINAL payment success in page content (very specific terms)
+          pageContent.includes("payment successful") ||
+          pageContent.includes("transaction successful") ||
+          pageContent.includes("payment completed") ||
+          pageContent.includes("transaction completed") ||
+          pageContent.includes("purchase successful") ||
+          pageContent.includes("deposit successful") ||
+          // Swedish equivalents for final payment success
+          pageContent.includes("betalning slutförd") ||
+          pageContent.includes("transaktion slutförd") ||
+          pageContent.includes("köp slutfört") ||
+          // URL-based FINAL success indicators (excluding 3DS auth)
+          (currentUrl.includes("payment-success") &&
+            !currentUrl.includes("3ds")) ||
+          (currentUrl.includes("transaction-success") &&
+            !currentUrl.includes("3ds")) ||
+          (currentUrl.includes("deposit-success") &&
+            !currentUrl.includes("3ds")) ||
+          (currentUrl.includes("success") && currentUrl.includes("final")) ||
+          // Switchere completion URL pattern
+          (currentUrl.includes("switchere.com/onramp/o/") &&
+            !currentUrl.includes("3ds")) ||
+          // Additional specific success indicators
+          pageContent.includes("your payment has been processed") ||
+          pageContent.includes("payment confirmation") ||
+          pageContent.includes("transaction confirmation");
+
+        // Check for failure indicators
+        const hasFailureIndicators =
+          pageContent.includes("error") ||
+          pageContent.includes("failed") ||
+          pageContent.includes("cancelled") ||
+          pageContent.includes("timeout") ||
+          pageContent.includes("avbruten") ||
+          pageContent.includes("misslyckad") ||
+          pageContent.includes("fel") ||
+          pageContent.includes("tiden är löpt ut") ||
+          // Specific PayBis/Widget error messages
+          pageContent.includes("the payment has been declined") ||
+          pageContent.includes("please contact your bank") ||
+          pageContent.includes("payment declined") ||
+          pageContent.includes("betalningen har avvisats") ||
+          pageContent.includes("kontakta din bank");
+
+        // Also check for specific error UI elements in the DOM
+        let hasErrorToast = false;
+        try {
+          hasErrorToast = await outerFrame
+            .evaluate(() => {
+              // Check for PayBis error toast
+              const errorToast = document.querySelector(
+                ".widget-content-toast--error",
+              );
+              if (errorToast) {
+                const toastText = errorToast.textContent.toLowerCase();
+                console.log("🚨 Error toast detected:", toastText);
+                return (
+                  toastText.includes("declined") ||
+                  toastText.includes("contact your bank") ||
+                  toastText.includes("payment has been declined")
+                );
+              }
+              return false;
+            })
+            .catch(() => false);
+        } catch (e) {
+          // Ignore evaluation errors
+        }
+
+        const totalFailureIndicators = hasFailureIndicators || hasErrorToast;
+
+        // Final verification - ONLY accept very specific success indicators
+        if (hasSuccessIndicators && !totalFailureIndicators) {
+          console.log(
+            "✅ FINAL PAYMENT SUCCESS indicators found in page content, overriding BankID timeout status",
+          );
+          resultJson = {
+            success: true,
+            source: "final_payment_confirmation",
+          };
+        } else if (
+          networkSuccessDetected &&
+          networkSuccessDetails?.type === "final_payment_success" &&
+          !totalFailureIndicators
+        ) {
+          console.log(
+            "✅ FINAL PAYMENT SUCCESS detected via network monitoring, overriding BankID timeout status",
+          );
+          console.log(
+            "📊 Final payment success details:",
+            JSON.stringify(networkSuccessDetails, null, 2),
+          );
+          resultJson = {
+            success: true,
+            source: "network_final_payment",
+          };
+        } else if (totalFailureIndicators) {
+          console.log("❌ Failure indicators confirmed, payment failed");
+          if (hasErrorToast) {
+            console.log(
+              "🚨 Specific error toast detected - payment declined by bank",
+            );
+          }
+        } else {
+          console.log(
+            "⚠️ No clear success indicators found, maintaining failed status",
+          );
+        }
+      } catch (error) {
+        console.error("Error during additional success verification:", error);
+      }
+    }
 
     console.log(resultJson);
 

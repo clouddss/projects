@@ -990,7 +990,7 @@ async function main() {
     });
     if (buyButtons2Handle.asElement()) {
       await buyButtons2Handle.asElement().click();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       await buyButtons2Handle.asElement().click();
     } else {
       throw new Error('Could not find second "Buy" button');

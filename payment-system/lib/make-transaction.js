@@ -944,39 +944,138 @@ async function main() {
 
     console.log("Entering wallet address...");
 
-    // Wait for page to be ready and wallet input to appear
+    // First, handle any wallet popup that might be blocking the form
+    console.log("🔍 Checking and closing wallet popups before entering address...");
     try {
-      await page.waitForSelector('input[name="wallet"]', {
-        visible: true,
-        timeout: 45000, // 45 seconds timeout
+      await page.evaluate(() => {
+        const walletPopup = document.getElementById('wallets-popup');
+        const addingPopup = document.getElementById('wallets-adding-popup');
+        
+        if (walletPopup && walletPopup.offsetParent !== null) {
+          const closeBtn = walletPopup.querySelector('.stepper-header__arrow-back, .fi-cross-thin');
+          if (closeBtn) {
+            const clickableParent = closeBtn.closest('button, a, div[onclick], [role="button"]');
+            if (clickableParent) clickableParent.click();
+            else closeBtn.click();
+          }
+        }
+        
+        if (addingPopup && addingPopup.offsetParent !== null) {
+          const closeBtn = addingPopup.querySelector('.stepper-header__arrow-back');
+          if (closeBtn) {
+            const clickableParent = closeBtn.closest('button, a, div[onclick], [role="button"]');
+            if (clickableParent) clickableParent.click();
+            else closeBtn.click();
+          }
+        }
       });
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch (popupError) {
+      console.log(`⚠️ Error handling popup: ${popupError.message}`);
+    }
 
-      // Add random mouse movement before interacting
+    // Wait for page to be ready and wallet input to appear
+    const walletSelectors = [
+      'input[name="wallet"]',
+      'input[placeholder*="wallet"]',
+      'input[placeholder*="address"]',
+      '.sw-input__input',
+      '.dst-address__input input'
+    ];
 
-      await randomDelay(500, 1500);
+    let walletInputFound = false;
+    
+    for (const selector of walletSelectors) {
+      try {
+        console.log(`🔍 Trying wallet input selector: ${selector}`);
+        
+        await page.waitForSelector(selector, {
+          visible: true,
+          timeout: 10000,
+        });
 
-      // Use human-like typing for wallet address
-      await typeWithDelay(page, 'input[name="wallet"]', walletAddress);
-      console.log("Wallet address entered.");
+        // Check if input is actually visible and not blocked
+        const inputVisible = await page.evaluate((sel) => {
+          const input = document.querySelector(sel);
+          return input && input.offsetParent !== null && !input.disabled;
+        }, selector);
 
-      // Random delay after typing
-      await randomDelay(500, 1000);
-    } catch (walletError) {
-      console.error("❌ Failed to find wallet input field");
-      console.error("Error:", walletError.message);
+        if (inputVisible) {
+          console.log(`✅ Found visible wallet input with selector: ${selector}`);
+          
+          // Clear any existing value first
+          await page.evaluate((sel) => {
+            const input = document.querySelector(sel);
+            if (input) {
+              input.value = '';
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }, selector);
+          
+          await randomDelay(500, 1000);
+          
+          // Use human-like typing for wallet address
+          await typeWithDelay(page, selector, walletAddress);
+          
+          // Verify the value was entered
+          const enteredValue = await page.evaluate((sel) => {
+            const input = document.querySelector(sel);
+            return input ? input.value : '';
+          }, selector);
+          
+          console.log(`📝 Wallet value entered: ${enteredValue.substring(0, 20)}...`);
+          
+          if (enteredValue === walletAddress) {
+            console.log("✅ Wallet address entered and verified successfully.");
+            walletInputFound = true;
+            break;
+          } else {
+            console.log(`⚠️ Value mismatch - expected length: ${walletAddress.length}, actual length: ${enteredValue.length}`);
+          }
+        }
+      } catch (selectorError) {
+        console.log(`❌ Selector ${selector} failed: ${selectorError.message}`);
+        continue;
+      }
+    }
 
+    if (!walletInputFound) {
+      console.error("❌ Failed to find or fill wallet input field with any selector");
+      
+      // Enhanced debugging
+      const pageState = await page.evaluate(() => {
+        return {
+          url: window.location.href,
+          title: document.title,
+          walletInputs: Array.from(document.querySelectorAll('input')).map(input => ({
+            name: input.name,
+            placeholder: input.placeholder,
+            type: input.type,
+            visible: input.offsetParent !== null,
+            disabled: input.disabled,
+            value: input.value?.substring(0, 20) + '...'
+          })),
+          popupsVisible: {
+            walletPopup: document.getElementById('wallets-popup')?.offsetParent !== null,
+            addingPopup: document.getElementById('wallets-adding-popup')?.offsetParent !== null
+          }
+        };
+      });
+      
+      console.log("📋 Page state for debugging:", JSON.stringify(pageState, null, 2));
+      
       // Take screenshot for debugging
       await page.screenshot({
-        path: path.join(__dirname, "screenshots", "wallet-error.png"),
+        path: path.join(__dirname, "screenshots", "wallet-input-error.png"),
         fullPage: true,
       });
 
-      // Check if we're on the right page
-      const currentUrl = page.url();
-      console.log("Current URL:", currentUrl);
-
-      throw walletError;
+      throw new Error("Could not find or fill wallet address input");
     }
+
+    // Random delay after typing
+    await randomDelay(500, 1000);
 
     console.log("Waiting for 1 second...");
     await new Promise((resolve) => setTimeout(resolve, 1000));

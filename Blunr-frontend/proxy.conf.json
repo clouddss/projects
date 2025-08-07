@@ -1,0 +1,8 @@
+{
+  "/api/*": {
+    "target": "https://backend.blunr.com",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  }
+}

@@ -1,5 +1,6 @@
 export default {
-  API_BASE_URL: 'https://backend.blunr.com/api',
+  API_BASE_URL: '/api', // Use relative URL to work with proxy
+   //API_BASE_URL: 'https://backend.blunr.com/api',
    //API_BASE_URL: 'http://localhost:5001/api',
   production: false,
   firebaseConfig: {

@@ -1209,7 +1209,9 @@ async function main() {
         } else if (hasFailureIndicators) {
           console.log("Failure indicators confirmed, payment failed");
         } else {
-          console.log("No clear success indicators found, maintaining failed status");
+          console.log(
+            "No clear success indicators found, maintaining failed status",
+          );
         }
       } catch (error) {
         console.error("Error during additional success verification:", error);

@@ -6,6 +6,7 @@ const axios = require("axios");
 const https = require("https");
 puppeteerExtra.use(Stealth());
 const fs = require("fs");
+const { UserAgent, random } = require("user-agents");
 
 // Import simple payment check function
 const { checkPaymentStatus } = require("./simple-payment-check.js");
@@ -431,6 +432,12 @@ async function main() {
       "wss://mohammedistanbul123_gmail_com-country-any-sid-ee682069a1144:2xmllgs8ht@browser.nodemaven.com",
   }); */
   const page = await browser.newPage();
+
+  const randomUserAgent = userAgent.toString();
+
+  await page.setUserAgent(randomUserAgent);
+
+  const userAgent = new UserAgent({ deviceCategory: "desktop" });
 
   // Using simplified payment detection - no complex network monitoring needed
   console.log("🎯 Using simplified payment detection approach");

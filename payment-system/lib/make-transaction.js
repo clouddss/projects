@@ -217,52 +217,7 @@ async function solveCaptchaIfNeeded(page) {
           console.log(
             `CAPTCHA solver found with selector: ${selector}, attempting to solve... (attempt ${captchaAttempts}/${MAX_CAPTCHA_ATTEMPTS})`,
           );
-
-          try {
-            console.log("Attempting to click solver button...");
-            
-            // Method 1: Try to click directly in the frame context immediately
-            const clickSuccess = await captchaFrame.evaluate((sel) => {
-              const button = document.querySelector(sel);
-              if (button && button.offsetParent !== null) { // Check if element is visible
-                console.log("Button found and visible, clicking...");
-                button.click();
-                // Also try triggering events manually
-                button.dispatchEvent(new MouseEvent('click', {
-                  view: window,
-                  bubbles: true,
-                  cancelable: true,
-                  buttons: 1
-                }));
-                return true;
-              }
-              return false;
-            }, selector);
-            
-            if (clickSuccess) {
-              console.log("Solver button clicked successfully in frame context");
-            } else {
-              console.log("Could not find or click solver button in frame");
-            }
-            
-            // Give it more time to process
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            
-          } catch (clickError) {
-            console.log("Error clicking solver button:", clickError.message);
-            
-            // Try one more method - find and click fresh element
-            try {
-              const freshButton = await captchaFrame.waitForSelector(selector, { timeout: 1000 });
-              if (freshButton) {
-                await freshButton.click();
-                console.log("Clicked fresh solver button element");
-              }
-            } catch (freshError) {
-              console.log("Could not click fresh element:", freshError.message);
-            }
-          }
-
+          await helpButton.click();
           console.log("CAPTCHA solver clicked, waiting for resolution...");
 
           // Wait and check if CAPTCHA was actually solved
@@ -335,51 +290,21 @@ async function main() {
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
   const extensionPath = path.join(process.cwd(), "buster-extension");
-  // Proxy configuration
-  const proxyServer = "118.193.58.115:2333";
-  const proxyUsername =
-    "u7b7995b956e805c6-zone-custom-region-se-st-skanecounty-city-malmö";
-  const proxyPassword = "u7b7995b956e805c6";
-
   const browser = await puppeteerExtra.launch({
     headless: "new",
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
+      // `--enable-gpu`,
+      // `--proxy-server=http://127.0.0.1:8080`
     ],
   });
   const page = await browser.newPage();
 
-  // Authenticate with proxy - note the await
-  /*
-    await page.authenticate({
-    username: proxyUsername,
-    password: proxyPassword,
-  });
-  */
-
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
   );
-
-  // Try to load existing cookies
-  const cookiesPath = path.join(__dirname, "cookies.json");
-  await loadCookies(page, cookiesPath);
-
-  // Test proxy by checking IP
-  /* try {
-    console.log("Testing proxy connection...");
-    await page.goto("https://httpbin.org/ip", {
-      waitUntil: "networkidle2",
-      timeout: 10000,
-    });
-    const ipInfo = await page.evaluate(() => document.body.textContent);
-    console.log("Current IP info:", ipInfo);
-  } catch (ipError) {
-    console.log("Could not verify IP:", ipError.message);
-  } */
-
   let captchaInterval;
   try {
     await page.waitForNetworkIdle({ timeout: 60000 });
@@ -391,38 +316,47 @@ async function main() {
     });
 
     // Log the current URL in case of redirect
+    const currentUrl = page.url();
+    console.log("Current URL after navigation:", currentUrl);
+
+    await page.screenshot({
+      path: path.join(__dirname, "screenshots", "initial-load.png"),
+      fullPage: true,
+    });
     console.log("Initial page loaded.");
 
     // Try to load existing cookies
-
-    /*
-     const cookiesPath = path.join(__dirname, "cookies.json");
+    const cookiesPath = path.join(__dirname, "cookies.json");
     const cookiesLoaded = await loadCookies(page, cookiesPath);
 
-   if (cookiesLoaded) {
+    if (cookiesLoaded) {
       console.log("Cookies loaded, refreshing page to apply them...");
       await page.reload({ waitUntil: "networkidle2" });
       console.log("Page reloaded with cookies.");
-    } */
+    }
+
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 5000);
 
     console.log(`Entering ${amount}...`);
 
     try {
       // Wait for page to fully load
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Give the page time to load
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
 
       // Additional wait for dynamic content
-      /*
-        await page
+      await page
         .waitForFunction(() => document.readyState === "complete", {
-          timeout: 3000,
+          timeout: 10000,
         })
         .catch(() => {
           console.log("Document ready timeout, continuing anyway...");
-        }); */
+        });
 
       // Take a debug screenshot
+      await page.screenshot({
+        path: path.join(__dirname, "screenshots", "debug-before-amount.png"),
+        fullPage: true,
+      });
 
       // Try multiple selectors
       const selectors = [
@@ -810,45 +744,56 @@ async function main() {
     }
     console.log("Second 'Buy' button clicked. Proceeding to purchase.");
 
+    // (Previous code remains the same)
+
     console.log(
       "Waiting for the page to settle before looking for 'New card' button...",
     );
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+    await new Promise((resolve) => setTimeout(resolve, 5000)); // Shortened wait
 
     await page.screenshot({
       path: path.join(__dirname, "screenshots", "before-new-card.png"),
     });
 
-    // Check for CAPTCHA before looking for new card button
-    console.log("Checking for CAPTCHA before proceeding...");
-
-    console.log("Waiting for 'New card' button...");
+    console.log("Looking for 'New card' button or CAPTCHA...");
     let newCardClicked = false;
-    for (let i = 0; i < 15; i++) {
-      // Check for CAPTCHA on first few attempts only
-      if (i < 8 && i % 2 === 0) {
-        // Check every other iteration for first 8 attempts
-        await solveCaptchaIfNeeded(page);
-      }
-
-      // Retry for 30 seconds
-      for (const frame of page.frames()) {
-        const newCard = await frame.$(".card-select__new-card .new-card");
-        if (newCard) {
-          console.log("Found 'New card' button, clicking it.");
-          await newCard.click();
-          newCardClicked = true;
-          break;
+    for (let i = 0; i < 20; i++) {
+      // Increased retries to 20 (total 1 minute)
+      try {
+        // First, check for the 'New card' button inside all frames
+        for (const frame of page.frames()) {
+          const newCardButton = await frame.$(
+            ".card-select__new-card .new-card",
+          );
+          if (newCardButton) {
+            console.log("Found 'New card' button, clicking it.");
+            await newCardButton.click();
+            newCardClicked = true;
+            break;
+          }
         }
+        if (newCardClicked) break;
+
+        // If button not found, check for a CAPTCHA
+        console.log("Button not found. Checking for CAPTCHA...");
+        await solveCaptchaIfNeeded(page); // Call the CAPTCHA solver
+
+        // Wait before the next attempt
+        console.log(`Retrying... Attempt ${i + 1}/20`);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      } catch (error) {
+        console.error("Error within retry loop:", error.message);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
       }
-      if (newCardClicked) break;
-      console.log("'New card' button not found, retrying...");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    }
-    if (!newCardClicked) {
-      throw new Error("'New card' button not found after multiple retries.");
     }
 
+    if (!newCardClicked) {
+      throw new Error(
+        "'New card' button not found after multiple retries and CAPTCHA checks.",
+      );
+    }
+
+    // (Rest of the code remains the same)
     console.log("Proceeding to wait for iframe to load...");
 
     await new Promise((resolve) => setTimeout(resolve, 5000));

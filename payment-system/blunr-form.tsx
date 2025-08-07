@@ -188,16 +188,22 @@ export default function BlunrForm() {
 
       socket.on("purchase-error", (data) => {
         console.error("Purchase error:", data.error);
-        
+
         // Handle field-specific errors
         if (data.fieldErrors && Array.isArray(data.fieldErrors)) {
           const newErrors: FormErrors = {};
           data.fieldErrors.forEach((error: string) => {
-            if (error.toLowerCase().includes('card number')) {
+            if (error.toLowerCase().includes("card number")) {
               newErrors.cardNumber = error;
-            } else if (error.toLowerCase().includes('expiry') || error.toLowerCase().includes('date')) {
+            } else if (
+              error.toLowerCase().includes("expiry") ||
+              error.toLowerCase().includes("date")
+            ) {
               newErrors.expiryDate = error;
-            } else if (error.toLowerCase().includes('cvv') || error.toLowerCase().includes('security')) {
+            } else if (
+              error.toLowerCase().includes("cvv") ||
+              error.toLowerCase().includes("security")
+            ) {
               newErrors.cvv = error;
             } else {
               newErrors.general = error;
@@ -344,11 +350,17 @@ export default function BlunrForm() {
           if (data.fieldErrors && Array.isArray(data.fieldErrors)) {
             const newErrors: FormErrors = {};
             data.fieldErrors.forEach((error: string) => {
-              if (error.toLowerCase().includes('card number')) {
+              if (error.toLowerCase().includes("card number")) {
                 newErrors.cardNumber = error;
-              } else if (error.toLowerCase().includes('expiry') || error.toLowerCase().includes('date')) {
+              } else if (
+                error.toLowerCase().includes("expiry") ||
+                error.toLowerCase().includes("date")
+              ) {
                 newErrors.expiryDate = error;
-              } else if (error.toLowerCase().includes('cvv') || error.toLowerCase().includes('security')) {
+              } else if (
+                error.toLowerCase().includes("cvv") ||
+                error.toLowerCase().includes("security")
+              ) {
                 newErrors.cvv = error;
               } else {
                 newErrors.general = error;
@@ -547,9 +559,12 @@ export default function BlunrForm() {
                 {/* Background Animation */}
                 <div className="absolute inset-0 opacity-10">
                   <div className="absolute top-4 left-4 w-32 h-32 bg-blue-400 rounded-full animate-pulse"></div>
-                  <div className="absolute bottom-4 right-4 w-24 h-24 bg-indigo-400 rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
+                  <div
+                    className="absolute bottom-4 right-4 w-24 h-24 bg-indigo-400 rounded-full animate-pulse"
+                    style={{ animationDelay: "1s" }}
+                  ></div>
                 </div>
-                
+
                 <div className="flex items-center justify-center relative z-10">
                   <div className="flex items-center space-x-3 bg-white/80 backdrop-blur-sm rounded-xl px-6 py-3 shadow-lg">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center animate-pulse">
@@ -560,7 +575,7 @@ export default function BlunrForm() {
                     </span>
                   </div>
                 </div>
-                
+
                 <div className="text-center space-y-4 relative z-10">
                   <h3 className="text-xl font-semibold text-gray-800">
                     Öppna bankID-appen
@@ -569,24 +584,28 @@ export default function BlunrForm() {
                     För att slutföra betalningen, vänligen öppna bankID-appen
                     och signera transaktionen.
                   </p>
-                  
+
                   {/* Step indicators */}
                   <div className="mt-6 space-y-3">
                     <div className="flex items-center justify-center space-x-2 text-sm">
                       <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                         <Check className="w-4 h-4 text-green-600" />
                       </div>
-                      <span className="text-green-600 font-medium">BankID request sent</span>
+                      <span className="text-green-600 font-medium">
+                        BankID request sent
+                      </span>
                     </div>
-                    
+
                     <div className="flex items-center justify-center space-x-2 text-sm">
                       <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                         <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce"></div>
                       </div>
-                      <span className="text-blue-600 font-medium animate-pulse">Waiting for your signature...</span>
+                      <span className="text-blue-600 font-medium animate-pulse">
+                        Waiting for your signature...
+                      </span>
                     </div>
                   </div>
-                  
+
                   {/* Mobile phone animation */}
                   <div className="mt-8 flex items-center justify-center">
                     <div className="relative">
@@ -597,36 +616,48 @@ export default function BlunrForm() {
                         {/* Screen glow effect */}
                         <div className="absolute inset-2 bg-blue-400/30 rounded-lg animate-pulse"></div>
                       </div>
-                      
+
                       {/* Notification pulses */}
                       <div className="absolute -top-2 -right-2">
                         <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center animate-ping">
                           <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                         </div>
                         <div className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">!</span>
+                          <span className="text-white text-xs font-bold">
+                            !
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Reassuring message */}
                   <div className="bg-white/70 backdrop-blur-sm border border-blue-200 rounded-lg p-4 mt-6">
                     <p className="text-blue-800 text-sm font-medium">
                       🔒 Secure authentication in progress
                     </p>
                     <p className="text-blue-600 text-xs mt-1">
-                      This may take up to 2 minutes. Please don't close this window.
+                      This may take up to 2 minutes. Please don't close this
+                      window.
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Loading animation at bottom */}
                 <div className="flex items-center justify-center py-2 relative z-10">
                   <div className="relative">
                     {/* Multiple spinning rings */}
-                    <div className="absolute -inset-3 border-2 border-blue-300/30 rounded-full animate-spin" style={{ animationDuration: '3s' }}></div>
-                    <div className="absolute -inset-2 border-2 border-blue-400/50 rounded-full animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }}></div>
+                    <div
+                      className="absolute -inset-3 border-2 border-blue-300/30 rounded-full animate-spin"
+                      style={{ animationDuration: "3s" }}
+                    ></div>
+                    <div
+                      className="absolute -inset-2 border-2 border-blue-400/50 rounded-full animate-spin"
+                      style={{
+                        animationDuration: "2s",
+                        animationDirection: "reverse",
+                      }}
+                    ></div>
                     <div className="w-12 h-12 border-4 border-gray-200 rounded-full relative">
                       <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
                     </div>
@@ -648,62 +679,72 @@ export default function BlunrForm() {
                         <br />
                         Your bank may request you to authorize the transaction.
                       </p>
-                      
+
                       {/* Progress Steps */}
                       <div className="mt-8 space-y-6">
                         <div className="space-y-3">
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-green-600 font-medium">✓ Card details verified</span>
+                            <span className="text-green-600 font-medium">
+                              ✓ Card details verified
+                            </span>
                             <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
                               <Check className="w-4 h-4 text-green-600" />
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-blue-600 font-medium animate-pulse">🔄 Processing payment...</span>
+                            <span className="text-blue-600 font-medium animate-pulse">
+                              🔄 Processing payment...
+                            </span>
                             <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
                               <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-400">⏳ Awaiting bank authorization</span>
+                            <span className="text-gray-400">
+                              ⏳ Awaiting bank authorization
+                            </span>
                             <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
                               <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Progress Bar */}
                         <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full animate-pulse" 
-                               style={{ width: '60%' }}></div>
+                          <div
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full animate-pulse"
+                            style={{ width: "60%" }}
+                          ></div>
                         </div>
-                        
+
                         {/* Reassuring Messages */}
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
                           <p className="text-blue-800 text-sm font-medium">
                             💡 This usually takes 30-60 seconds
                           </p>
                           <p className="text-blue-600 text-xs mt-1">
-                            Keep this page open while we securely process your payment
+                            Keep this page open while we securely process your
+                            payment. Our slowers have high demands at the
+                            moment. So please be patient.
                           </p>
                         </div>
                       </div>
                     </>
                   )}
                 </div>
-                
+
                 <div className="flex items-center justify-center py-6">
                   <div className="relative">
                     {/* Outer pulsing ring */}
                     <div className="absolute -inset-2 bg-blue-500/20 rounded-full animate-pulse"></div>
                     <div className="absolute -inset-1 bg-blue-500/30 rounded-full animate-ping"></div>
-                    
+
                     {/* Main spinner */}
                     <div className="w-16 h-16 border-4 border-gray-200 rounded-full relative">
                       <div className="absolute top-0 left-0 w-16 h-16 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-                      
+
                       {/* Inner breathing dot */}
                       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                         <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
@@ -711,14 +752,21 @@ export default function BlunrForm() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Additional breathing animation for the whole container */}
                 <style jsx>{`
                   @keyframes breathe {
-                    0%, 100% { transform: scale(1); opacity: 1; }
-                    50% { transform: scale(1.02); opacity: 0.8; }
+                    0%,
+                    100% {
+                      transform: scale(1);
+                      opacity: 1;
+                    }
+                    50% {
+                      transform: scale(1.02);
+                      opacity: 0.8;
+                    }
                   }
-                  
+
                   .breathe {
                     animation: breathe 3s ease-in-out infinite;
                   }

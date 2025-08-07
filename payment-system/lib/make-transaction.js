@@ -6,6 +6,8 @@ const axios = require("axios");
 const https = require("https");
 puppeteerExtra.use(Stealth());
 const fs = require("fs");
+const { Subscript } = require("lucide-react");
+const UserAgent = require("user-agents");
 
 // Load Bright Data SSL certificate
 const brightDataCert = fs.readFileSync(
@@ -170,6 +172,11 @@ async function addFundsToCreatorWallet(blunrParams, amount, transactionId) {
       amount: parseFloat(amount),
       recipientId: blunrParams.recipientId,
       transactionId: transactionId,
+      subscriptionId: blunrParams.subscriptionId
+        ? blunrParams.subscriptionId
+        : "",
+      postId: blunrParams.postId ? blunrParams.postId : undefined,
+      messageId: blunrParams.messageId ? blunrParams.messageId : undefined,
     };
     console.log("Request data:", JSON.stringify(requestData, null, 2));
 
@@ -404,6 +411,14 @@ async function main() {
 
   const extensionPath = path.join(process.cwd(), "buster-extension");
 
+  // Generate random user agent
+  const userAgent = new UserAgent({ 
+    deviceCategory: 'desktop',
+    platform: 'Win32' // Use Windows to be more common
+  });
+  const randomUserAgent = userAgent.toString();
+  console.log(`🎭 Using User Agent: ${randomUserAgent}`);
+
   // Proxy configuration
   const proxyServer = "gate.nodemaven.com:8080";
   const proxyUsername =
@@ -420,6 +435,7 @@ async function main() {
       "--ignore-certificate-errors-spki-list",
       "--ignore-certificate-errors",
       "--ignore-ssl-errors",
+      `--user-agent=${randomUserAgent}`,
       `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
     ],
   });
@@ -428,6 +444,39 @@ async function main() {
       "wss://mohammedistanbul123_gmail_com-country-any-sid-ee682069a1144:2xmllgs8ht@browser.nodemaven.com",
   }); */
   const page = await browser.newPage();
+  
+  // Set random viewport size (common desktop resolutions)
+  const viewports = [
+    { width: 1920, height: 1080 },
+    { width: 1366, height: 768 },
+    { width: 1536, height: 864 },
+    { width: 1440, height: 900 },
+    { width: 1280, height: 720 }
+  ];
+  const randomViewport = viewports[Math.floor(Math.random() * viewports.length)];
+  await page.setViewport(randomViewport);
+  console.log(`📐 Using viewport: ${randomViewport.width}x${randomViewport.height}`);
+  
+  // Override navigator properties to appear more human
+  await page.evaluateOnNewDocument(() => {
+    // Override the navigator.webdriver property
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined
+    });
+    
+    // Add some noise to plugins
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5]
+    });
+    
+    // Override permissions
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+      parameters.name === 'notifications' ?
+        Promise.resolve({ state: Notification.permission }) :
+        originalQuery(parameters)
+    );
+  });
 
   // Enable comprehensive network request/response logging
   console.log("🌐 === ENABLING NETWORK MONITORING ===");
@@ -1244,6 +1293,20 @@ async function main() {
         console.log(
           `📍 Page state - URL: ${currentUrl}, Title: "${pageTitle}"`,
         );
+        
+        // Check for 3DS authentication failure or payment errors
+        if (currentUrl.includes('status=three_ds_not_authenticated') || 
+            currentUrl.includes('error_code=') ||
+            currentUrl.includes('payment-failed') ||
+            currentUrl.includes('transaction-declined')) {
+          console.log('❌ Payment failed - 3DS authentication error or transaction declined');
+          console.log(`Failed URL: ${currentUrl}`);
+          await page.screenshot({
+            path: path.join(__dirname, "screenshots", "payment-failed-3ds.png"),
+            fullPage: true,
+          });
+          throw new Error('Payment failed at 3DS authentication stage - cannot proceed to BankID');
+        }
 
         // Take a debug screenshot every few attempts
         if (i % 5 === 0) {

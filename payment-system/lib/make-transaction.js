@@ -1179,26 +1179,63 @@ async function main() {
             console.log("🔍 Button stuck in loading state - checking form validation...");
             
             const formValidation = await page.evaluate(() => {
-              // Check if wallet address input is filled and valid
-              const walletInput = document.querySelector('input[name="wallet"]');
-              const form = document.querySelector('form.address-step');
+              // Check multiple possible wallet input selectors
+              const walletSelectors = [
+                'input[name="wallet"]',
+                'input[placeholder*="wallet"]',
+                'input[placeholder*="address"]',
+                '.sw-input__input'
+              ];
+              
+              let walletInput = null;
+              let walletValue = 'not found';
+              
+              for (const selector of walletSelectors) {
+                const input = document.querySelector(selector);
+                if (input && input.value && input.offsetParent !== null) {
+                  walletInput = input;
+                  walletValue = input.value;
+                  break;
+                }
+              }
+              
+              // If still not found, check all inputs
+              if (!walletInput) {
+                const allInputs = Array.from(document.querySelectorAll('input[type="text"]'));
+                for (const input of allInputs) {
+                  if (input.value && input.value.length > 20 && input.offsetParent !== null) {
+                    walletInput = input;
+                    walletValue = input.value;
+                    break;
+                  }
+                }
+              }
+              
+              const form = document.querySelector('form.address-step, form');
               
               return {
-                walletValue: walletInput ? walletInput.value : 'not found',
+                walletValue: walletValue.substring(0, 30) + '...',
+                walletValueLength: walletValue.length,
                 walletValid: walletInput ? walletInput.checkValidity() : false,
                 formValid: form ? form.checkValidity() : false,
-                requiredFields: Array.from(document.querySelectorAll('input[required]')).map(input => ({
-                  name: input.name,
-                  value: input.value,
-                  valid: input.checkValidity()
-                }))
+                allInputs: Array.from(document.querySelectorAll('input')).map(input => ({
+                  name: input.name || 'unnamed',
+                  placeholder: input.placeholder || 'no placeholder',
+                  value: input.value ? input.value.substring(0, 20) + '...' : 'empty',
+                  visible: input.offsetParent !== null,
+                  required: input.required
+                })),
+                popupsVisible: {
+                  walletPopup: document.getElementById('wallets-popup')?.offsetParent !== null,
+                  addingPopup: document.getElementById('wallets-adding-popup')?.offsetParent !== null
+                }
               };
             });
             
             console.log("📋 Form validation state:", JSON.stringify(formValidation, null, 2));
             
             // If form seems valid but button still loading, force click it anyway
-            if (formValidation.walletValue && formValidation.walletValue.length > 10) {
+            if (formValidation.walletValueLength > 20) {
               console.log("💪 Form appears valid - forcing button click despite loading state...");
               
               await page.evaluate(() => {

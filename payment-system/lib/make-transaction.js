@@ -290,23 +290,38 @@ async function main() {
   const blunrParams = JSON.parse(process.env.BLUNR_PARAMS || "{}");
 
   const extensionPath = path.join(process.cwd(), "buster-extension");
+
+  // Proxy configuration
+  const proxyServer = "193.160.223.203:38593";
+  const proxyUsername = "blyw9835";
+  const proxyPassword = "IRJpdq4612";
   const browser = await puppeteerExtra.launch({
-    headless: "new",
+    headless: false,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
       "--no-sandbox",
-      // `--enable-gpu`,
-      // `--proxy-server=http://127.0.0.1:8080`
+      `--proxy-server=${proxyServer}`,
     ],
   });
   const page = await browser.newPage();
 
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-  );
+  // Authenticate with proxy
+  await page.authenticate({
+    username: proxyUsername,
+    password: proxyPassword,
+  });
+
+  console.log(`Using proxy: ${proxyServer} with username: ${proxyUsername}`);
+
+  // Test proxy by checking IP
+
   let captchaInterval;
   try {
+    // Start CAPTCHA checking immediately and run throughout the entire process
+    console.log("Starting CAPTCHA monitoring (checking every 3 seconds)...");
+    captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 3000);
+
     await page.waitForNetworkIdle({ timeout: 60000 });
 
     console.log("Navigating to the website...");
@@ -335,7 +350,7 @@ async function main() {
       console.log("Page reloaded with cookies.");
     }
 
-    captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 5000);
+    // CAPTCHA checking already started at the beginning
 
     console.log(`Entering ${amount}...`);
 
@@ -493,6 +508,7 @@ async function main() {
     if (buyButtonHandle.asElement()) {
       await buyButtonHandle.asElement().click();
       await new Promise((resolve) => setTimeout(resolve, 500));
+      await buyButtonHandle.asElement().click();
       await buyButtonHandle.asElement().click();
     } else {
       throw new Error('Could not find "Buy" button');
@@ -774,11 +790,7 @@ async function main() {
         }
         if (newCardClicked) break;
 
-        // If button not found, check for a CAPTCHA
-        console.log("Button not found. Checking for CAPTCHA...");
-        await solveCaptchaIfNeeded(page); // Call the CAPTCHA solver
-
-        // Wait before the next attempt
+        // Wait before the next attempt (CAPTCHA is already being checked every 3 seconds)
         console.log(`Retrying... Attempt ${i + 1}/20`);
         await new Promise((resolve) => setTimeout(resolve, 3000));
       } catch (error) {

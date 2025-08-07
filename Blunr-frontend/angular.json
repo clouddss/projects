@@ -66,6 +66,10 @@
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "allowedHosts": ["blunr.com", "localhost", "127.0.0.1"],
+            "host": "0.0.0.0"
+          },
           "configurations": {
             "production": {
               "buildTarget": "blunr:build:production"

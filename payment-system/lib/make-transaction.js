@@ -476,10 +476,20 @@ async function main() {
     console.log("📍 Target URL: https://switchere.com/onramp#/");
 
     const navigationStart = Date.now();
-    await page.goto("https://switchere.com/onramp#/", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
-    });
+    console.log(
+      "🚀 Starting navigation with domcontentloaded wait condition...",
+    );
+
+    try {
+      await page.goto("https://switchere.com/onramp#/", {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      console.log("✅ Page navigation successful");
+    } catch (error) {
+      console.log("⚠️ Navigation error:", error.message);
+      console.log("🔄 Attempting to continue anyway...");
+    }
 
     const navigationTime = Date.now() - navigationStart;
     console.log(`⏱️ Navigation completed in ${navigationTime}ms`);

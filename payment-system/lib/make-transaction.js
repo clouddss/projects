@@ -1152,11 +1152,10 @@ async function main() {
     );
     console.log("Full result object:", JSON.stringify(resultJson, null, 2));
 
-    // Additional success check - sometimes the payment completes successfully
-    // but the BankID frame doesn't show the expected message
+    // Additional success check - only override failure if we have explicit success indicators
     if (!resultJson.success) {
       console.log(
-        "Payment marked as failed, attempting additional success verification...",
+        "Payment marked as failed, checking for explicit success indicators...",
       );
 
       try {
@@ -1173,25 +1172,44 @@ async function main() {
           ),
         });
 
-        // Check main page for success indicators
+        // Check main page for explicit success indicators
         const pageContent = await page
           .evaluate(() => document.body.innerText.toLowerCase())
           .catch(() => "");
         console.log("Page content preview:", pageContent.substring(0, 500));
 
-        // If no clear failure message and we're not on an error page, assume success
+        // Only treat as success if we have explicit positive indicators
+        const hasSuccessIndicators =
+          pageContent.includes("success") ||
+          pageContent.includes("completed") ||
+          pageContent.includes("confirmed") ||
+          pageContent.includes("framgång") ||
+          pageContent.includes("slutförd") ||
+          pageContent.includes("bekräftad") ||
+          currentUrl.includes("success") ||
+          currentUrl.includes("complete") ||
+          currentUrl.includes("confirmed");
+
+        // Check for failure indicators
         const hasFailureIndicators =
           pageContent.includes("error") ||
           pageContent.includes("failed") ||
           pageContent.includes("cancelled") ||
+          pageContent.includes("timeout") ||
           pageContent.includes("avbruten") ||
-          pageContent.includes("misslyckad");
+          pageContent.includes("misslyckad") ||
+          pageContent.includes("fel") ||
+          pageContent.includes("tiden är löpt ut");
 
-        if (!hasFailureIndicators && pageContent.length > 0) {
+        if (hasSuccessIndicators && !hasFailureIndicators) {
           console.log(
-            "No failure indicators found, treating as successful payment",
+            "Explicit success indicators found, overriding BankID timeout status",
           );
           resultJson = { success: true };
+        } else if (hasFailureIndicators) {
+          console.log("Failure indicators confirmed, payment failed");
+        } else {
+          console.log("No clear success indicators found, maintaining failed status");
         }
       } catch (error) {
         console.error("Error during additional success verification:", error);

@@ -6,12 +6,19 @@ export const AuthInterceptor: HttpInterceptorFn = (req, next) => {
 
   const baseReq = req.clone({
     url: `${envs.API_BASE_URL}${req.url}`,
+    setHeaders: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    withCredentials: true,
   });
 
   const clonedReq = token
     ? baseReq.clone({
         setHeaders: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
       })
     : baseReq;

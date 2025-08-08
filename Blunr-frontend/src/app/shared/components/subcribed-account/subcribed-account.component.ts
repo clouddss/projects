@@ -37,11 +37,14 @@ export class SubcribedAccountComponent implements OnInit {
   private readonly modalService = inject(NgbModal);
 
   ngOnInit(): void {
-    this._id = this.creatorData._id;
-    this.username = this.creatorData.username;
-    this.subscriptionPrice = this.creatorData.subscriptionPrice;
-    this.name = this.creatorData.name;
-    this.avatar = this.creatorData.avatar;
+    // Handle case where creatorData might be null or undefined
+    if (this.creatorData) {
+      this._id = this.creatorData._id || 'xyz';
+      this.username = this.creatorData.username || 'Blunr User';
+      this.subscriptionPrice = this.creatorData.subscriptionPrice || '0';
+      this.name = this.creatorData.name || 'Blunr User';
+      this.avatar = this.creatorData.avatar || '../../../../../../assets/images/avatar.jpeg';
+    }
   }
 
   constructor(

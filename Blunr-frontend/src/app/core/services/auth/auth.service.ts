@@ -34,12 +34,13 @@ export class AuthService {
     return this.http.put('/user/update', formData);
   }
 
-  signup(email: string, password: string, username: string, role: string) {
+  signup(email: string, password: string, username: string, role: string, referralCode?: string) {
     const res = this.http.post(`/auth/register`, {
       email,
       password,
       role,
       username,
+      referralCode,
     });
     return res;
   }

@@ -134,11 +134,14 @@ export const getAllPosts = async (req, res) => {
     // Fetch only non-banned posts
     const posts = await PostService.getAllPosts({ isNSFW: false });
 
-    // Fetch all active subscriptions for the user
+    // Fetch all active subscriptions for the user (including permanent follows)
     const activeSubscriptions = await Subscription.find({
       subscriber: userId,
       status: "active",
-      expiresAt: { $gte: new Date() },
+      $or: [
+        { expiresAt: null }, // Permanent follows (free accounts)
+        { expiresAt: { $gte: new Date() } } // Non-expired subscriptions
+      ]
     }).select("creator");
 
     const subscribedCreators = new Set(

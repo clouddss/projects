@@ -6,8 +6,6 @@ const axios = require("axios");
 const https = require("https");
 puppeteerExtra.use(Stealth());
 const fs = require("fs");
-const { Subscript } = require("lucide-react");
-const UserAgent = require("user-agents");
 
 // Load Bright Data SSL certificate
 const brightDataCert = fs.readFileSync(
@@ -172,11 +170,6 @@ async function addFundsToCreatorWallet(blunrParams, amount, transactionId) {
       amount: parseFloat(amount),
       recipientId: blunrParams.recipientId,
       transactionId: transactionId,
-      subscriptionId: blunrParams.subscriptionId
-        ? blunrParams.subscriptionId
-        : "",
-      postId: blunrParams.postId ? blunrParams.postId : undefined,
-      messageId: blunrParams.messageId ? blunrParams.messageId : undefined,
     };
     console.log("Request data:", JSON.stringify(requestData, null, 2));
 
@@ -201,6 +194,9 @@ async function addFundsToCreatorWallet(blunrParams, amount, transactionId) {
         return true; // Accept any status code to see what's happening
       },
     });
+
+    console.log("Response status:", response.status);
+    console.log("Response headers:", response.headers);
 
     if (response.status === 301 || response.status === 302) {
       console.log("Redirect detected. Location:", response.headers.location);
@@ -390,72 +386,6 @@ async function solveCaptchaIfNeeded(page) {
   }
 }
 
-// Helper function to add random delays (more human-like)
-function randomDelay(min = 500, max = 2000) {
-  return new Promise((resolve) =>
-    setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min),
-  );
-}
-
-// Helper function to type text with human-like delays
-async function typeWithDelay(page, selector, text, options = {}) {
-  const element = await page.$(selector);
-  if (!element) {
-    throw new Error(`Element not found: ${selector}`);
-  }
-
-  // Clear existing content first
-  await element.click({ clickCount: 3 });
-  await page.keyboard.press("Backspace");
-
-  // Random delay before typing
-  await randomDelay(200, 500);
-
-  // Type each character with random delay
-  for (const char of text) {
-    await page.type(selector, char, { delay: Math.random() * 100 + 50 });
-    // Occasionally pause longer between words
-    if (char === " " && Math.random() > 0.7) {
-      await randomDelay(100, 300);
-    }
-  }
-}
-
-// Helper function to move mouse randomly (simulate human behavior)
-async function randomMouseMovement(page) {
-  const viewport = page.viewport();
-  // Check if viewport exists
-  if (!viewport) {
-    console.log("⚠️ No viewport set, skipping mouse movement");
-    return;
-  }
-  const x = Math.floor(Math.random() * viewport.width);
-  const y = Math.floor(Math.random() * viewport.height);
-  await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
-}
-
-// Helper function for smart clicking with random offsets
-async function humanClick(page, selector) {
-  const element = await page.$(selector);
-  if (!element) {
-    throw new Error(`Element not found for clicking: ${selector}`);
-  }
-
-  const box = await element.boundingBox();
-  if (!box) {
-    throw new Error(`Element has no bounding box: ${selector}`);
-  }
-
-  // Click somewhere random within the element
-  const x = box.x + box.width * 0.3 + Math.random() * box.width * 0.4;
-  const y = box.y + box.height * 0.3 + Math.random() * box.height * 0.4;
-
-  // Move mouse to element first
-  await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 5 });
-  await randomDelay(100, 300);
-  await page.mouse.click(x, y);
-}
-
 async function main() {
   const amount = process.env.AMOUNT || 200;
   const gmail = "m4teelias@gmail.com";
@@ -474,21 +404,13 @@ async function main() {
 
   const extensionPath = path.join(process.cwd(), "buster-extension");
 
-  // Generate random user agent
-  const userAgent = new UserAgent({
-    deviceCategory: "desktop",
-    platform: "Win32", // Use Windows to be more common
-  });
-  const randomUserAgent = userAgent.toString();
-  console.log(`🎭 Using User Agent: ${randomUserAgent}`);
-
   // Proxy configuration
   const proxyServer = "gate.nodemaven.com:8080";
   const proxyUsername =
-    "blunrcomproxy-country-se-type-mobile-sid-1efde638a6944-ttl-16m40s-filter-medium-speed-fast";
-  const proxyPassword = "blunrcomproxy";
+    "mohammedistanbul123_gmail_com-country-se-region-stockholm_county-sid-4fc068db62dc4-filter-medium";
+  const proxyPassword = "2xmllgs8ht";
   const browser = await puppeteerExtra.launch({
-    headless: "new",
+    headless: false,
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,
@@ -498,7 +420,6 @@ async function main() {
       "--ignore-certificate-errors-spki-list",
       "--ignore-certificate-errors",
       "--ignore-ssl-errors",
-      `--user-agent=${randomUserAgent}`,
       `--ssl-client-certificate-file=${path.join(__dirname, "BrightData SSL certificate (port 33335).crt")}`,
     ],
   });
@@ -508,10 +429,37 @@ async function main() {
   }); */
   const page = await browser.newPage();
 
-  // Override navigator properties to appear more human
-
   // Enable comprehensive network request/response logging
   console.log("🌐 === ENABLING NETWORK MONITORING ===");
+
+  page.on("request", (request) => {
+    console.log(`🔄 REQUEST: ${request.method()} ${request.url()}`);
+    if (request.postData()) {
+      console.log(`📤 POST Data: ${request.postData().substring(0, 500)}`);
+    }
+    console.log(`🏷️ Headers:`, JSON.stringify(request.headers(), null, 2));
+  });
+
+  page.on("response", (response) => {
+    console.log(`📥 RESPONSE: ${response.status()} ${response.url()}`);
+    console.log(
+      `🏷️ Response Headers:`,
+      JSON.stringify(response.headers(), null, 2),
+    );
+  });
+
+  page.on("requestfailed", (request) => {
+    console.error(`❌ REQUEST FAILED: ${request.method()} ${request.url()}`);
+    console.error(`💥 Failure reason: ${request.failure()?.errorText}`);
+  });
+
+  page.on("console", (msg) => {
+    console.log(`🖥️ BROWSER CONSOLE [${msg.type()}]: ${msg.text()}`);
+  });
+
+  page.on("pageerror", (error) => {
+    console.error(`💥 PAGE ERROR: ${error.message}`);
+  });
 
   await page.authenticate({
     username: proxyUsername,
@@ -537,32 +485,16 @@ async function main() {
     console.log("Starting CAPTCHA monitoring (checking every 3 seconds)...");
     captchaInterval = setInterval(() => solveCaptchaIfNeeded(page), 3000);
 
+    await page.waitForNetworkIdle({ timeout: 60000 });
+
     console.log("🌐 === NAVIGATING TO SWITCHERE ===");
     console.log("📍 Target URL: https://switchere.com/onramp#/");
 
-    // Try navigation with retry logic
     const navigationStart = Date.now();
-    let navigationSuccess = false;
-    let retries = 3;
-
-    while (retries > 0 && !navigationSuccess) {
-      try {
-        await page.goto("https://switchere.com/onramp#/", {
-          waitUntil: "domcontentloaded", // Less strict than networkidle2
-          timeout: 90000, // 90 seconds timeout
-        });
-        navigationSuccess = true;
-      } catch (navError) {
-        console.log(`⚠️ Navigation attempt failed: ${navError.message}`);
-        retries--;
-        if (retries > 0) {
-          console.log(`🔄 Retrying navigation... (${retries} attempts left)`);
-          await randomDelay(2000, 5000);
-        } else {
-          throw navError;
-        }
-      }
-    }
+    await page.goto("https://switchere.com/onramp#/", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
 
     // CAPTCHA checking already started at the beginning
 
@@ -570,9 +502,16 @@ async function main() {
 
     try {
       // Wait for page to fully load
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Give the page time to load
 
       // Additional wait for dynamic content
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await page
+        .waitForFunction(() => document.readyState === "complete", {
+          timeout: 10000,
+        })
+        .catch(() => {
+          console.log("Document ready timeout, continuing anyway...");
+        });
 
       // Take a debug screenshot
       await page.screenshot({
@@ -714,8 +653,7 @@ async function main() {
     });
     if (buyButtonHandle.asElement()) {
       await buyButtonHandle.asElement().click();
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await buyButtonHandle.asElement().click();
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       await buyButtonHandle.asElement().click();
     } else {
       throw new Error('Could not find "Buy" button');
@@ -723,7 +661,7 @@ async function main() {
     console.log("First 'Buy' button clicked. Proceeding to login.");
 
     // Brief wait for page to respond after buy button click
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Check if email input is visible (if not, we're already logged in)
     const emailSelectors = [
@@ -943,334 +881,29 @@ async function main() {
     }
 
     console.log("Entering wallet address...");
-
-    // First, handle any wallet popup that might be blocking the form
-    console.log("🔍 Checking and closing wallet popups before entering address...");
-    try {
-      await page.evaluate(() => {
-        const walletPopup = document.getElementById('wallets-popup');
-        const addingPopup = document.getElementById('wallets-adding-popup');
-        
-        if (walletPopup && walletPopup.offsetParent !== null) {
-          const closeBtn = walletPopup.querySelector('.stepper-header__arrow-back, .fi-cross-thin');
-          if (closeBtn) {
-            const clickableParent = closeBtn.closest('button, a, div[onclick], [role="button"]');
-            if (clickableParent) clickableParent.click();
-            else closeBtn.click();
-          }
-        }
-        
-        if (addingPopup && addingPopup.offsetParent !== null) {
-          const closeBtn = addingPopup.querySelector('.stepper-header__arrow-back');
-          if (closeBtn) {
-            const clickableParent = closeBtn.closest('button, a, div[onclick], [role="button"]');
-            if (clickableParent) clickableParent.click();
-            else closeBtn.click();
-          }
-        }
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    } catch (popupError) {
-      console.log(`⚠️ Error handling popup: ${popupError.message}`);
-    }
-
-    // Wait for page to be ready and wallet input to appear
-    const walletSelectors = [
-      'input[name="wallet"]',
-      'input[placeholder*="wallet"]',
-      'input[placeholder*="address"]',
-      '.sw-input__input',
-      '.dst-address__input input'
-    ];
-
-    let walletInputFound = false;
-    
-    for (const selector of walletSelectors) {
-      try {
-        console.log(`🔍 Trying wallet input selector: ${selector}`);
-        
-        await page.waitForSelector(selector, {
-          visible: true,
-          timeout: 10000,
-        });
-
-        // Check if input is actually visible and not blocked
-        const inputVisible = await page.evaluate((sel) => {
-          const input = document.querySelector(sel);
-          return input && input.offsetParent !== null && !input.disabled;
-        }, selector);
-
-        if (inputVisible) {
-          console.log(`✅ Found visible wallet input with selector: ${selector}`);
-          
-          // Clear any existing value first
-          await page.evaluate((sel) => {
-            const input = document.querySelector(sel);
-            if (input) {
-              input.value = '';
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-          }, selector);
-          
-          await randomDelay(500, 1000);
-          
-          // Use human-like typing for wallet address
-          await typeWithDelay(page, selector, walletAddress);
-          
-          // Verify the value was entered
-          const enteredValue = await page.evaluate((sel) => {
-            const input = document.querySelector(sel);
-            return input ? input.value : '';
-          }, selector);
-          
-          console.log(`📝 Wallet value entered: ${enteredValue.substring(0, 20)}...`);
-          
-          if (enteredValue === walletAddress) {
-            console.log("✅ Wallet address entered and verified successfully.");
-            walletInputFound = true;
-            break;
-          } else {
-            console.log(`⚠️ Value mismatch - expected length: ${walletAddress.length}, actual length: ${enteredValue.length}`);
-          }
-        }
-      } catch (selectorError) {
-        console.log(`❌ Selector ${selector} failed: ${selectorError.message}`);
-        continue;
-      }
-    }
-
-    if (!walletInputFound) {
-      console.error("❌ Failed to find or fill wallet input field with any selector");
-      
-      // Enhanced debugging
-      const pageState = await page.evaluate(() => {
-        return {
-          url: window.location.href,
-          title: document.title,
-          walletInputs: Array.from(document.querySelectorAll('input')).map(input => ({
-            name: input.name,
-            placeholder: input.placeholder,
-            type: input.type,
-            visible: input.offsetParent !== null,
-            disabled: input.disabled,
-            value: input.value?.substring(0, 20) + '...'
-          })),
-          popupsVisible: {
-            walletPopup: document.getElementById('wallets-popup')?.offsetParent !== null,
-            addingPopup: document.getElementById('wallets-adding-popup')?.offsetParent !== null
-          }
-        };
-      });
-      
-      console.log("📋 Page state for debugging:", JSON.stringify(pageState, null, 2));
-      
-      // Take screenshot for debugging
-      await page.screenshot({
-        path: path.join(__dirname, "screenshots", "wallet-input-error.png"),
-        fullPage: true,
-      });
-
-      throw new Error("Could not find or fill wallet address input");
-    }
-
-    // Random delay after typing
-    await randomDelay(500, 1000);
+    await page.waitForSelector('input[name="wallet"]', { visible: true });
+    const walletInput = await page.$('input[name="wallet"]');
+    await walletInput.click();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await walletInput.type(walletAddress);
+    console.log("Wallet address entered.");
 
     console.log("Waiting for 1 second...");
     await new Promise((resolve) => setTimeout(resolve, 1000));
     console.log("Clicking the second 'Buy' button...");
-    // First, check if wallet popup is blocking and close it
-    console.log("🔍 Checking for wallet selection popup before Buy button...");
-    const walletPopupVisible = await page.evaluate(() => {
-      const popup = document.getElementById('wallets-popup');
-      const addingPopup = document.getElementById('wallets-adding-popup');
-      return {
-        walletPopup: popup && popup.offsetParent !== null,
-        addingPopup: addingPopup && addingPopup.offsetParent !== null
-      };
+    const buyButtons2Handle = await page.evaluateHandle(() => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const buyButtons = buttons.filter((button) =>
+        button.textContent.includes("Buy"),
+      );
+      return buyButtons.length > 0 ? buyButtons[buyButtons.length - 1] : null;
     });
-
-    if (walletPopupVisible.walletPopup || walletPopupVisible.addingPopup) {
-      console.log("📱 Wallet popup is blocking - need to close it first");
-      
-      try {
-        // Find and click the X button to close the popup
-        await page.evaluate(() => {
-          const closeButtons = Array.from(document.querySelectorAll('.stepper-header__arrow-back-icon, .fi-cross-thin, .j-sdk__back-button'));
-          const closeButton = closeButtons.find(btn => btn.offsetParent !== null);
-          if (closeButton) {
-            const clickableParent = closeButton.closest('button, a, div[onclick], [role="button"]');
-            if (clickableParent) clickableParent.click();
-            else closeButton.click();
-            return true;
-          }
-          return false;
-        });
-        
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        console.log("✅ Closed wallet popup");
-        
-      } catch (error) {
-        console.log(`⚠️ Error closing wallet popup: ${error.message}`);
-      }
+    if (buyButtons2Handle.asElement()) {
+      await buyButtons2Handle.asElement().click();
+    } else {
+      throw new Error('Could not find second "Buy" button');
     }
-
-    // Wait for any loading to finish and find the Buy button
-    console.log("🔍 Looking for Buy button...");
-    let buyButtonClicked = false;
-    
-    for (let attempt = 0; attempt < 10; attempt++) {
-      try {
-        const buyButton = await page.evaluate(() => {
-          const buttons = Array.from(document.querySelectorAll("button[type='submit'], button"));
-          const buyButtons = buttons.filter((button) => {
-            const text = button.textContent?.trim();
-            const isLoading = button.querySelector('.ld-ring, .ld-spin');
-            const isDisabled = button.disabled;
-            return text && text.includes("Buy") && !isLoading && !isDisabled && button.offsetParent !== null;
-          });
-          return buyButtons.length > 0 ? buyButtons[0] : null;
-        });
-
-        if (buyButton) {
-          console.log("✅ Found clickable Buy button");
-          await page.evaluate((btn) => {
-            btn.click();
-          }, buyButton);
-          
-          buyButtonClicked = true;
-          break;
-        } else {
-          console.log(`🔄 Buy button not ready yet (attempt ${attempt + 1}/10) - checking for loading state...`);
-          
-          // Check what state the button is in
-          const buttonState = await page.evaluate(() => {
-            const buttons = Array.from(document.querySelectorAll("button"));
-            const buyButtons = buttons.filter(b => b.textContent?.includes("Buy"));
-            if (buyButtons.length > 0) {
-              const btn = buyButtons[0];
-              return {
-                text: btn.textContent?.trim(),
-                disabled: btn.disabled,
-                hasLoader: !!btn.querySelector('.ld-ring, .ld-spin'),
-                visible: btn.offsetParent !== null,
-                className: btn.className
-              };
-            }
-            return null;
-          });
-          
-          console.log(`🔍 Button state:`, JSON.stringify(buttonState, null, 2));
-          
-          if (buttonState && !buttonState.hasLoader && !buttonState.disabled) {
-            // Try clicking even if it wasn't found in the previous check
-            await page.evaluate(() => {
-              const buttons = Array.from(document.querySelectorAll("button"));
-              const buyButton = buttons.find(b => b.textContent?.includes("Buy"));
-              if (buyButton) buyButton.click();
-            });
-            buyButtonClicked = true;
-            break;
-          }
-          
-          // If button is stuck in loading state after 5 attempts, check for form validation issues
-          if (attempt >= 4 && buttonState && buttonState.hasLoader) {
-            console.log("🔍 Button stuck in loading state - checking form validation...");
-            
-            const formValidation = await page.evaluate(() => {
-              // Check multiple possible wallet input selectors
-              const walletSelectors = [
-                'input[name="wallet"]',
-                'input[placeholder*="wallet"]',
-                'input[placeholder*="address"]',
-                '.sw-input__input'
-              ];
-              
-              let walletInput = null;
-              let walletValue = 'not found';
-              
-              for (const selector of walletSelectors) {
-                const input = document.querySelector(selector);
-                if (input && input.value && input.offsetParent !== null) {
-                  walletInput = input;
-                  walletValue = input.value;
-                  break;
-                }
-              }
-              
-              // If still not found, check all inputs
-              if (!walletInput) {
-                const allInputs = Array.from(document.querySelectorAll('input[type="text"]'));
-                for (const input of allInputs) {
-                  if (input.value && input.value.length > 20 && input.offsetParent !== null) {
-                    walletInput = input;
-                    walletValue = input.value;
-                    break;
-                  }
-                }
-              }
-              
-              const form = document.querySelector('form.address-step, form');
-              
-              return {
-                walletValue: walletValue.substring(0, 30) + '...',
-                walletValueLength: walletValue.length,
-                walletValid: walletInput ? walletInput.checkValidity() : false,
-                formValid: form ? form.checkValidity() : false,
-                allInputs: Array.from(document.querySelectorAll('input')).map(input => ({
-                  name: input.name || 'unnamed',
-                  placeholder: input.placeholder || 'no placeholder',
-                  value: input.value ? input.value.substring(0, 20) + '...' : 'empty',
-                  visible: input.offsetParent !== null,
-                  required: input.required
-                })),
-                popupsVisible: {
-                  walletPopup: document.getElementById('wallets-popup')?.offsetParent !== null,
-                  addingPopup: document.getElementById('wallets-adding-popup')?.offsetParent !== null
-                }
-              };
-            });
-            
-            console.log("📋 Form validation state:", JSON.stringify(formValidation, null, 2));
-            
-            // If form seems valid but button still loading, force click it anyway
-            if (formValidation.walletValueLength > 20) {
-              console.log("💪 Form appears valid - forcing button click despite loading state...");
-              
-              await page.evaluate(() => {
-                const buttons = Array.from(document.querySelectorAll("button"));
-                const buyButton = buttons.find(b => b.textContent?.includes("Buy"));
-                if (buyButton) {
-                  // Remove loading classes and click
-                  buyButton.classList.remove('ld-over');
-                  const loader = buyButton.querySelector('.ld');
-                  if (loader) loader.remove();
-                  buyButton.click();
-                  return true;
-                }
-                return false;
-              });
-              
-              buyButtonClicked = true;
-              console.log("✅ Forced click on Buy button");
-              break;
-            }
-          }
-          
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      } catch (error) {
-        console.log(`⚠️ Error in buy button attempt ${attempt + 1}: ${error.message}`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-
-    if (!buyButtonClicked) {
-      throw new Error('Could not find or click the Buy button after 10 attempts');
-    }
-    
-    console.log("✅ Buy button clicked successfully. Proceeding to purchase...");
+    console.log("Second 'Buy' button clicked. Proceeding to purchase.");
 
     // (Previous code remains the same)
 
@@ -1288,291 +921,19 @@ async function main() {
     for (let i = 0; i < 20; i++) {
       // Increased retries to 20 (total 1 minute)
       try {
-        // Take a debug screenshot every 5 attempts
-        if (i % 5 === 0) {
-          await page.screenshot({
-            path: path.join(
-              __dirname,
-              "screenshots",
-              `new-card-search-${i}.png`,
-            ),
-            fullPage: true,
-          });
-          console.log(`📸 Debug screenshot taken: new-card-search-${i}.png`);
-        }
-
-        // Log comprehensive page content
-        const pageContent = await page.evaluate(() => {
-          return {
-            url: window.location.href,
-            title: document.title,
-            bodyText: document.body.innerText.substring(0, 800),
-            buttons: Array.from(document.querySelectorAll("button")).map(
-              (btn) => ({
-                text: btn.textContent?.trim(),
-                className: btn.className,
-                id: btn.id,
-                visible: btn.offsetParent !== null,
-                style: btn.style.cssText || "none",
-                dataset:
-                  Object.keys(btn.dataset).length > 0 ? btn.dataset : null,
-              }),
-            ),
-            links: Array.from(document.querySelectorAll("a")).map((link) => ({
-              text: link.textContent?.trim(),
-              href: link.href,
-              className: link.className,
-              id: link.id,
-              visible: link.offsetParent !== null,
-            })),
-            divs: Array.from(document.querySelectorAll("div"))
-              .filter((div) => {
-                const text = div.textContent?.toLowerCase() || "";
-                const classes = div.className?.toLowerCase() || "";
-                return (
-                  text.includes("card") ||
-                  text.includes("new") ||
-                  classes.includes("card") ||
-                  classes.includes("new") ||
-                  text.includes("payment") ||
-                  text.includes("checkout")
-                );
-              })
-              .map((div) => ({
-                text: div.textContent?.trim().substring(0, 100),
-                className: div.className,
-                id: div.id,
-                visible: div.offsetParent !== null,
-                clickable:
-                  div.onclick !== null || div.style.cursor === "pointer",
-              })),
-            spans: Array.from(document.querySelectorAll("span"))
-              .filter((span) => {
-                const text = span.textContent?.toLowerCase() || "";
-                const classes = span.className?.toLowerCase() || "";
-                return (
-                  text.includes("new card") ||
-                  text.includes("add card") ||
-                  classes.includes("card") ||
-                  classes.includes("new")
-                );
-              })
-              .map((span) => ({
-                text: span.textContent?.trim(),
-                className: span.className,
-                id: span.id,
-                visible: span.offsetParent !== null,
-                clickable:
-                  span.onclick !== null || span.style.cursor === "pointer",
-              })),
-          };
-        });
-        if (i % 5 === 0) {
-          // Only log detailed content every 5 attempts to reduce spam
-          console.log(
-            `🔍 Detailed page state at attempt ${i + 1}:`,
-            JSON.stringify(pageContent, null, 2),
-          );
-        } else {
-          console.log(
-            `🔍 Quick check at attempt ${i + 1}: ${pageContent.buttons.length} buttons, ${pageContent.links.length} links, ${pageContent.divs.length} card-related divs`,
-          );
-        }
-
-        // Try multiple selectors for the new card button with broader matching
-        const newCardSelectors = [
-          ".card-select__new-card .new-card",
-          ".new-card",
-          "button.new-card",
-          ".card-select__new-card",
-          '[class*="new-card"]',
-          '[class*="new_card"]',
-          'button[class*="card"]',
-          'a[class*="card"]',
-          'div[class*="card"][class*="new"]',
-          'div[class*="new"][class*="card"]',
-          '[data-testid*="new-card"]',
-          '[data-testid*="card"]',
-          'button[data-action*="card"]',
-          'button[data-type*="card"]',
-          '[role="button"][class*="card"]',
-          'span[class*="card"][class*="new"]',
-        ];
-
-        // Text-based selectors (handled separately due to complexity)
-        const textBasedSelectors = [
-          { tag: "button", text: "New card" },
-          { tag: "a", text: "New card" },
-          { tag: "div", text: "New card" },
-          { tag: "span", text: "New card" },
-          { tag: "button", text: "Add card" },
-          { tag: "a", text: "Add card" },
-          { tag: "div", text: "Add card" },
-          { tag: "button", text: "Add new card" },
-          { tag: "a", text: "Add new card" },
-          { tag: "*", text: "New payment method" },
-          { tag: "*", text: "Add payment method" },
-        ];
-
         // First, check for the 'New card' button inside all frames
         for (const frame of page.frames()) {
-          try {
-            const frameUrl = frame.url();
-            console.log(`🔍 Checking frame: ${frameUrl}`);
-
-            for (const selector of newCardSelectors) {
-              try {
-                // Use evaluateHandle for more complex selectors
-                const elementHandle = await frame.evaluateHandle((sel) => {
-                  // For :contains selector
-                  if (sel.includes(":contains")) {
-                    const searchText = sel.match(/:contains\("([^"]+)"\)/)?.[1];
-                    const tagName = sel.split(":")[0];
-                    if (searchText) {
-                      const elements = Array.from(
-                        document.querySelectorAll(tagName),
-                      );
-                      return elements.find((el) =>
-                        el.textContent?.includes(searchText),
-                      );
-                    }
-                  }
-                  // For regular selectors
-                  return document.querySelector(sel);
-                }, selector);
-
-                const element = elementHandle.asElement();
-                if (element) {
-                  const isVisible = await element.evaluate(
-                    (el) => el.offsetParent !== null,
-                  );
-                  if (isVisible) {
-                    console.log(
-                      `✅ Found 'New card' element with selector: ${selector}`,
-                    );
-                    await element.click();
-                    newCardClicked = true;
-                    break;
-                  }
-                }
-              } catch (e) {
-                // Continue to next selector
-              }
-            }
-
-            if (newCardClicked) break;
-          } catch (frameError) {
-            console.log(`⚠️ Error checking frame: ${frameError.message}`);
-          }
-        }
-
-        if (newCardClicked) break;
-
-        // Also try searching in the main page (not just frames)
-        console.log("🔍 Searching in main page...");
-
-        // Check CSS selectors on main page
-        for (const selector of newCardSelectors) {
-          try {
-            const element = await page.$(selector);
-            if (element) {
-              const isVisible = await element.evaluate(
-                (el) => el.offsetParent !== null,
-              );
-              if (isVisible) {
-                console.log(
-                  `✅ Found 'New card' element in main page with CSS selector: ${selector}`,
-                );
-                await element.click();
-                newCardClicked = true;
-                break;
-              }
-            }
-          } catch (e) {
-            // Continue to next selector
-          }
-        }
-
-        if (newCardClicked) break;
-
-        // Check text-based selectors on main page
-        for (const { tag, text } of textBasedSelectors) {
-          try {
-            const element = await page.evaluateHandle(
-              (tagName, searchText) => {
-                const elements = Array.from(
-                  document.querySelectorAll(
-                    tagName === "*" ? "button, a, div, span" : tagName,
-                  ),
-                );
-                return elements.find((el) => {
-                  const elementText =
-                    el.textContent?.trim().toLowerCase() || "";
-                  const searchLower = searchText.toLowerCase();
-                  return (
-                    elementText.includes(searchLower) ||
-                    elementText === searchLower ||
-                    el
-                      .getAttribute("aria-label")
-                      ?.toLowerCase()
-                      .includes(searchLower) ||
-                    el
-                      .getAttribute("title")
-                      ?.toLowerCase()
-                      .includes(searchLower)
-                  );
-                });
-              },
-              tag,
-              text,
-            );
-
-            const el = element.asElement();
-            if (el) {
-              const isVisible = await el.evaluate(
-                (el) => el.offsetParent !== null,
-              );
-              if (isVisible) {
-                console.log(
-                  `✅ Found 'New card' element in main page with text "${text}" in ${tag} tag`,
-                );
-                await el.click();
-                newCardClicked = true;
-                break;
-              }
-            }
-          } catch (e) {
-            // Continue to next selector
-          }
-        }
-
-        if (newCardClicked) break;
-
-        // If not found, check if we're on a different page or state
-        const currentUrl = page.url();
-        if (currentUrl.includes("payment") || currentUrl.includes("checkout")) {
-          console.log(
-            '📍 Already on payment page, might not need "New card" button',
+          const newCardButton = await frame.$(
+            ".card-select__new-card .new-card",
           );
-
-          // Check if payment form is already visible
-          const hasPaymentForm = await page.evaluate(() => {
-            return !!(
-              document.querySelector('input[name="number"]') ||
-              document.querySelector('input[name="cardNumber"]') ||
-              document.querySelector('iframe[src*="paybis"]') ||
-              document.querySelector('iframe[src*="payment"]')
-            );
-          });
-
-          if (hasPaymentForm) {
-            console.log(
-              '✅ Payment form already visible, skipping "New card" button',
-            );
+          if (newCardButton) {
+            console.log("Found 'New card' button, clicking it.");
+            await newCardButton.click();
             newCardClicked = true;
             break;
           }
         }
+        if (newCardClicked) break;
 
         // Wait before the next attempt (CAPTCHA is already being checked every 3 seconds)
         console.log(`Retrying... Attempt ${i + 1}/20`);
@@ -1882,26 +1243,6 @@ async function main() {
         console.log(
           `📍 Page state - URL: ${currentUrl}, Title: "${pageTitle}"`,
         );
-
-        // Check for 3DS authentication failure or payment errors
-        if (
-          currentUrl.includes("status=three_ds_not_authenticated") ||
-          currentUrl.includes("error_code=") ||
-          currentUrl.includes("payment-failed") ||
-          currentUrl.includes("transaction-declined")
-        ) {
-          console.log(
-            "❌ Payment failed - 3DS authentication error or transaction declined",
-          );
-          console.log(`Failed URL: ${currentUrl}`);
-          await page.screenshot({
-            path: path.join(__dirname, "screenshots", "payment-failed-3ds.png"),
-            fullPage: true,
-          });
-          throw new Error(
-            "Payment failed at 3DS authentication stage - cannot proceed to BankID",
-          );
-        }
 
         // Take a debug screenshot every few attempts
         if (i % 5 === 0) {

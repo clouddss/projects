@@ -133,7 +133,8 @@ export default function BlunrForm() {
       isConnecting = true;
       console.log("Attempting to connect to WebSocket server");
 
-      socket = io("https://checkout.blunr.com/", {
+      //socket = io("https://checkout.blunr.com/", {
+      socket = io("http://localhost:3000", {
         timeout: 10000,
         reconnection: true,
         reconnectionDelay: 2000,

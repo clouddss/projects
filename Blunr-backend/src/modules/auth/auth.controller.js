@@ -1,6 +1,7 @@
 import { registerUser, loginUser,findUser, generateOtp, findByIdAndUpdate, updateUserPassword, encrypt } from './auth.service.js';
 import User from '../user/user.model.js';
 import Wallet from '../wallet/wallet.model.js';
+import ReferralService from '../referrals/referral.service.js';
 import nodemailer from 'nodemailer';
 import ejs from 'ejs';
 import path from 'path';
@@ -10,7 +11,7 @@ import { fileURLToPath } from "url";
 
 export const register = async (req, res) => {
     try {
-        const { username, email, password, role } = req.body;
+        const { username, email, password, role, referralCode } = req.body;
         const validRoles = ['user', 'creator', 'admin'];
 
         // Validate role
@@ -53,9 +54,19 @@ export const register = async (req, res) => {
 
         // Register the new user
         const newUser = await registerUser(username, email, password, role);
+        
         // Create a wallet for the user
         const newWallet = new Wallet({ user: newUser.user._id, balance: 0, currency: 'USD' });
         await newWallet.save();
+
+        // Handle referral system integration
+        try {
+            await ReferralService.createUserReferralRecord(newUser.user._id, referralCode);
+            console.log(`Referral record created for user ${newUser.user._id}${referralCode ? ` with referral code ${referralCode}` : ' (organic)'}`);
+        } catch (referralError) {
+            console.error('Error setting up referral for new user:', referralError);
+            // Don't fail registration if referral setup fails
+        }
 
         return res.status(201).json({
             status: 201,

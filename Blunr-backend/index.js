@@ -17,6 +17,7 @@ import tipRoutes from './src/modules/tips/tip.routes.js';
 import reportRoutes from './src/modules/reports/report.routes.js';
 import walletRoutes from './src/modules/wallet/wallet.routes.js';
 import commentRoutes from './src/modules/comments/comment.routes.js';
+import referralRoutes from './src/modules/referrals/referral.routes.js';
 import {
   coinbaseWebhook,
   nowPaymentsWebhook,
@@ -75,6 +76,7 @@ app.use('/api/tip', tipRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/comment', commentRoutes);
+app.use('/api/referral', referralRoutes);
 
 // ✅ Start server
 const PORT = process.env.PORT || 5000;

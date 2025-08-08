@@ -21,6 +21,7 @@ import { SuggestionMobileComponent } from './suggestion-mobile/suggestion-mobile
 import { ContactSupportComponent } from './contact-support/contact-support.component';
 import { PrivacyPolicyComponent } from './privacy-policy/privacy-policy.component';
 import { TermsOfServicesComponent } from './terms-of-services/terms-of-services.component';
+import { ReferralDashboardComponent } from './referral-dashboard/referral-dashboard.component';
 
 export const routes: Routes = [
   {
@@ -119,6 +120,11 @@ export const routes: Routes = [
   {
     path: removeSlashFromRouteName(ROUTES.CONTACT_SUPPORT),
     component: ContactSupportComponent,
+    canActivate: [AuthGuard],
+  },
+  {
+    path: removeSlashFromRouteName(ROUTES.REFERRAL_DASHBOARD),
+    component: ReferralDashboardComponent,
     canActivate: [AuthGuard],
   },
 ];

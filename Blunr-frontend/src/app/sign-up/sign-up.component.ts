@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -7,7 +7,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../core/services/auth/auth.service';
 import { ToastrService } from 'ngx-toastr';
 import { ROUTES } from '../core/constants/routes.constant';
@@ -18,13 +18,15 @@ import { ROUTES } from '../core/constants/routes.constant';
   templateUrl: './sign-up.component.html',
   styleUrl: './sign-up.component.scss',
 })
-export class SignUpComponent {
+export class SignUpComponent implements OnInit {
   signupForm: FormGroup;
   isLoading: boolean = false;
+  referralCode: string | null = null;
 
   routes = ROUTES;
 
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   constructor(
     private fb: FormBuilder,
@@ -39,6 +41,14 @@ export class SignUpComponent {
     });
   }
 
+  ngOnInit(): void {
+    // Get referral code from URL query parameters
+    this.referralCode = this.route.snapshot.queryParams['ref'] || null;
+    if (this.referralCode) {
+      console.log('Referral code detected:', this.referralCode);
+    }
+  }
+
   isInvalid(controlName: string): boolean {
     const control = this.signupForm.get(controlName);
     return !!(control && control.invalid && (control.dirty || control.touched));
@@ -48,9 +58,12 @@ export class SignUpComponent {
     this.isLoading = true;
     if (this.signupForm.valid) {
       const { email, password, username, role } = this.signupForm.value;
-      this.auth.signup(email, password, username, role).subscribe({
+      this.auth.signup(email, password, username, role, this.referralCode || undefined).subscribe({
         next: (response) => {
           this.toast.success((response as any).message);
+          if (this.referralCode) {
+            this.toast.info('You were successfully referred!');
+          }
           this.router.navigate([this.routes.LOGIN]);
         },
         error: (err) => {

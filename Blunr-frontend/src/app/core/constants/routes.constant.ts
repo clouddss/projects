@@ -11,6 +11,7 @@ export const ROUTES = {
   YOUR_TRANSACTIONS: '/your-transactions',
   SET_SUBSCRIPTION_PLAN: '/set-subscription-plan',
   RAISE_WITHDRWAL_REQUEST: '/raise-withdrwal-request',
+  REFERRAL_DASHBOARD: '/referral-dashboard',
   SUCCESS: '/success',
   FAILED: '/failed',
   TOP_CREATORS: '/top-creators',

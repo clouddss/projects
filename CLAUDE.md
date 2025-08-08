@@ -161,6 +161,86 @@ Frontend environment configuration in `src/envs/index.ts`
 5. **Component Communication**: Services as singleton state managers
 6. **Route Protection**: AuthGuard checks token before route activation
 
+## Deployment & Infrastructure
+
+### Production Deployment
+
+The project uses PM2 for process management and nginx as a reverse proxy:
+
+#### Backend Deployment with PM2
+```bash
+# Deploy backend changes
+git add .
+git commit -m "Your commit message"
+git push origin main
+
+# On production server
+git pull origin main
+npm install  # if dependencies changed
+pm2 restart blunr-backend  # or pm2 reload for zero-downtime
+pm2 status  # check process status
+```
+
+#### Frontend Deployment
+Frontend is served through nginx configuration at `/nginx.conf` which:
+- Serves static Angular files from `/usr/share/nginx/html`
+- Proxies `/api/*` requests to `https://backend.blunr.com`
+- Handles Angular routing with `try_files` fallback
+
+### Infrastructure Setup
+- **Backend**: Deployed at `backend.blunr.com` (managed via PM2)
+- **Frontend**: Served via nginx at `blunr.com`
+- **Domain**: Uses Cloudflare for DNS and CDN
+- **Database**: MongoDB (connection via `MONGO_URI` environment variable)
+- **File Storage**: Cloudinary for images/videos
+
+### CORS Configuration
+⚠️ **Important**: CORS headers should be managed by either nginx OR the Node.js application, not both:
+- Current setup: Node.js handles CORS with `origin: true` for all origins
+- If using nginx for CORS, disable CORS middleware in Node.js to prevent duplicate headers
+- Common issue: `Access-Control-Allow-Origin` header contains multiple values
+
+## Key Features & Business Logic
+
+### Subscription System
+The platform supports both free and paid subscriptions:
+
+#### Free Accounts (Permanent Follows)
+- When `subscriptionPrice` for all durations is 0, users can follow permanently
+- No expiration date (`expiresAt: null`) for free subscriptions
+- Frontend shows "FOLLOW THIS CREATOR" instead of subscription pricing
+- Implementation: `subscription.model.js` has optional `expiresAt` field
+
+#### Paid Subscriptions
+- 1, 3, or 6-month subscription options
+- Pricing set by creators for each duration
+- Expiration dates calculated based on duration
+- Automatic renewal logic handles both free and paid subscriptions
+
+#### Key Files:
+- `subscription.model.js` - Optional `expiresAt` for permanent follows
+- `subscription.controller.js` - Logic for free vs paid subscription handling
+- `user.controller.js` - Check for both null and future expiration dates
+- `static-profile.component.html` - Conditional UI for free vs paid accounts
+
+## Common Issues & Solutions
+
+### CORS Issues
+- **Problem**: Duplicate `Access-Control-Allow-Origin` headers
+- **Cause**: Both nginx and Node.js setting CORS headers
+- **Solution**: Use only one layer for CORS (currently Node.js with `origin: true`)
+- **Debug**: Check headers with curl or browser dev tools
+
+### Deployment Issues
+- **PM2 Process Management**: Use `pm2 restart` or `pm2 reload` after code changes
+- **Cache**: Clear Cloudflare cache after frontend deployments
+- **Environment Variables**: Ensure production `.env` file is properly configured
+
+### Authentication Issues
+- **JWT Token**: Stored in localStorage, included via HTTP interceptor
+- **CORS**: Ensure `credentials: true` for cookie/token handling
+- **Backend**: Verify JWT secret is consistent across deployments
+
 ## Common Development Tasks
 
 ### Adding a New Backend Module
@@ -188,3 +268,15 @@ Frontend environment configuration in `src/envs/index.ts`
 - API routes expect `/api/` prefix
 - Check auth middleware for protected routes
 - Use browser DevTools Network tab to inspect requests/responses
+
+## Development Best Practices
+
+1. **Always test CORS configuration** after backend changes
+2. **Use absolute URLs** in frontend environment configuration (`src/envs/index.ts`)
+3. **Handle both free and paid subscriptions** in subscription logic
+4. **Validate webhook signatures** for payment security
+5. **Use PM2 for production deployment** rather than direct node commands
+6. **Monitor nginx logs** for proxy and routing issues
+7. **Keep environment variables secure** and out of version control
+8. **ES6 Modules**: Backend uses `"type": "module"` in package.json
+9. **Raw Body Parsing**: Required for webhook signature verification

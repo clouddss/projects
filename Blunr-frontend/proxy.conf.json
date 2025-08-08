@@ -1,6 +1,6 @@
 {
   "/api/*": {
-    "target": "https://backend.blunr.com",
+    "target": "https://blunr-backend.fly.dev",
     "secure": true,
     "changeOrigin": true,
     "logLevel": "debug"

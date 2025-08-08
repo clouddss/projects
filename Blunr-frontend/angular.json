@@ -67,7 +67,7 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "allowedHosts": ["blunr.com", "localhost", "127.0.0.1", "backend.blunr.com", "checkout.blunr.com"],
+            "allowedHosts": ["blunr-frontend.fly.dev", "localhost", "127.0.0.1", "backend.blunr.com", "checkout.blunr.com", "https://backend.blunr.com"],
             "host": "0.0.0.0",
             "proxyConfig": "proxy.conf.json"
           },

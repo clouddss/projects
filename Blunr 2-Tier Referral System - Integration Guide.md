@@ -69,7 +69,7 @@ import ReferralService from '../modules/referrals/referral.service.js';
 const registerUser = async (req, res) => {
     try {
         const { email, username, password, referralCode } = req.body;
-        
+
         // Create user first
         const newUser = new User({
             email,
@@ -77,15 +77,15 @@ const registerUser = async (req, res) => {
             password: await bcrypt.hash(password, 10),
             // ... other user fields
         });
-        
+
         await newUser.save();
-        
+
         // Create referral record and establish chain
         const referralData = await ReferralService.createUserReferralRecord(
-            newUser._id, 
+            newUser._id,
             referralCode
         );
-        
+
         // Update user with referral data if referred
         if (referralData.tier1Referrer || referralData.tier2Referrer) {
             newUser.referralData = {
@@ -103,16 +103,16 @@ const registerUser = async (req, res) => {
                 },
                 referralSource: referralCode ? 'referral' : 'organic'
             };
-            
+
             await newUser.save();
         }
-        
+
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
             user: newUser
         });
-        
+
     } catch (error) {
         console.error('Registration error:', error);
         res.status(500).json({
@@ -135,22 +135,22 @@ import { processReferralCommissions } from '../modules/referrals/transaction-int
 const completeTransaction = async (req, res) => {
     try {
         // ... existing transaction logic
-        
+
         // Mark transaction as completed
         transaction.status = 'completed';
         await transaction.save();
-        
+
         // Process referral commissions
         if (transaction.status === 'completed' && transaction.recipient) {
             req.transaction = transaction;
             await processReferralCommissions(req, res, () => {});
         }
-        
+
         res.json({
             success: true,
             transaction
         });
-        
+
     } catch (error) {
         console.error('Transaction completion error:', error);
         res.status(500).json({
@@ -179,7 +179,7 @@ Add to your `.env` file:
 
 ```env
 # Referral System Configuration
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=https://blunr.com
 REFERRAL_TIER1_RATE=0.10
 REFERRAL_TIER2_RATE=0.02
 REFERRAL_MIN_PAYOUT=10
@@ -231,7 +231,7 @@ export class SignUpComponent {
     signupForm: FormGroup;
     referralCode: string = '';
     referrerInfo: any = null;
-    
+
     constructor(
         private fb: FormBuilder,
         private authService: AuthService,
@@ -245,7 +245,7 @@ export class SignUpComponent {
                 this.validateReferralCode();
             }
         });
-        
+
         this.signupForm = this.fb.group({
             email: ['', [Validators.required, Validators.email]],
             username: ['', [Validators.required, Validators.minLength(3)]],
@@ -253,7 +253,7 @@ export class SignUpComponent {
             referralCode: [this.referralCode]
         });
     }
-    
+
     validateReferralCode(): void {
         if (this.referralCode && this.referralCode.length >= 6) {
             this.referralService.validateReferralCode(this.referralCode).subscribe({
@@ -271,14 +271,14 @@ export class SignUpComponent {
             });
         }
     }
-    
+
     onSubmit(): void {
         if (this.signupForm.valid) {
             const formData = {
                 ...this.signupForm.value,
                 referralCode: this.referralCode || null
             };
-            
+
             this.authService.register(formData).subscribe({
                 next: (response) => {
                     // Handle successful registration
@@ -323,19 +323,19 @@ export class ReferralDashboardComponent implements OnInit {
     commissionHistory: any[] = [];
     leaderboard: any[] = [];
     loading = true;
-    
+
     constructor(
         private referralService: ReferralService,
         private toast: ToastrService
     ) {}
-    
+
     ngOnInit(): void {
         this.loadDashboardData();
     }
-    
+
     loadDashboardData(): void {
         this.loading = true;
-        
+
         // Load all dashboard data in parallel
         forkJoin({
             stats: this.referralService.getReferralStats(),
@@ -355,7 +355,7 @@ export class ReferralDashboardComponent implements OnInit {
             }
         });
     }
-    
+
     copyReferralLink(): void {
         if (this.stats?.shareUrl) {
             navigator.clipboard.writeText(this.stats.shareUrl).then(() => {
@@ -376,7 +376,7 @@ Add referral fields to existing User model:
 // In your user.model.js, add these fields to the schema
 const UserSchema = new mongoose.Schema({
     // ... existing fields
-    
+
     // Add referral data
     referralData: {
         referralCode: { type: String, sparse: true, unique: true },
@@ -393,14 +393,14 @@ const UserSchema = new mongoose.Schema({
         },
         referralSource: { type: String, default: 'organic' }
     },
-    
+
     commissionEarnings: {
         tier1Earnings: { type: Number, default: 0 },
         tier2Earnings: { type: Number, default: 0 },
         totalCommissions: { type: Number, default: 0 },
         lastCommissionDate: { type: Date, default: null }
     }
-    
+
     // ... rest of existing fields
 });
 
@@ -424,22 +424,22 @@ import Referral from './src/modules/referrals/referral.model.js';
 const migrateExistingUsers = async () => {
     try {
         console.log('Starting referral system migration...');
-        
+
         const users = await User.find({
             $or: [
                 { 'referralData.referralCode': { $exists: false } },
                 { 'referralData.referralCode': null }
             ]
         });
-        
+
         console.log(`Found ${users.length} users to migrate`);
-        
+
         for (const user of users) {
             try {
                 // Generate referral code
                 const baseString = user.username || user.email?.split('@')[0] || '';
                 const referralCode = await Referral.generateReferralCode(baseString);
-                
+
                 // Create referral record
                 const referralRecord = new Referral({
                     code: referralCode,
@@ -448,9 +448,9 @@ const migrateExistingUsers = async () => {
                     tier1Referrer: null,
                     tier2Referrer: null
                 });
-                
+
                 await referralRecord.save();
-                
+
                 // Update user with referral data
                 user.referralData = {
                     referralCode: referralCode,
@@ -467,24 +467,24 @@ const migrateExistingUsers = async () => {
                     },
                     referralSource: 'organic'
                 };
-                
+
                 user.commissionEarnings = {
                     tier1Earnings: 0,
                     tier2Earnings: 0,
                     totalCommissions: 0,
                     lastCommissionDate: null
                 };
-                
+
                 await user.save();
                 console.log(`Migrated user: ${user.username} - Code: ${referralCode}`);
-                
+
             } catch (userError) {
                 console.error(`Failed to migrate user ${user._id}:`, userError.message);
             }
         }
-        
+
         console.log('Migration completed successfully!');
-        
+
     } catch (error) {
         console.error('Migration failed:', error);
     } finally {
@@ -869,7 +869,7 @@ To change commission rates, update the environment variables and restart the ser
 
 ```javascript
 // In commission.model.js
-const rates = { 
+const rates = {
     tier1: parseFloat(process.env.REFERRAL_TIER1_RATE) || 0.10,
     tier2: parseFloat(process.env.REFERRAL_TIER2_RATE) || 0.02
 };
@@ -903,67 +903,67 @@ import app from '../index.js'; // Your main app
 describe('Referral System API', () => {
     let userToken, adminToken;
     let testReferralCode;
-    
+
     beforeAll(async () => {
         // Setup test users and tokens
         userToken = 'your-test-user-jwt';
         adminToken = 'your-test-admin-jwt';
     });
-    
+
     describe('Public Endpoints', () => {
         test('POST /api/referrals/validate - should validate referral code', async () => {
             const response = await request(app)
                 .post('/api/referrals/validate')
                 .send({ referralCode: 'TESTCODE123' });
-                
+
             expect(response.status).toBe(200);
             expect(response.body.success).toBe(true);
         });
-        
+
         test('GET /api/referrals/leaderboard - should return leaderboard', async () => {
             const response = await request(app)
                 .get('/api/referrals/leaderboard?limit=5');
-                
+
             expect(response.status).toBe(200);
             expect(response.body.data).toBeInstanceOf(Array);
         });
     });
-    
+
     describe('Protected Endpoints', () => {
         test('GET /api/referrals/dashboard - should return user dashboard', async () => {
             const response = await request(app)
                 .get('/api/referrals/dashboard')
                 .set('Authorization', `Bearer ${userToken}`);
-                
+
             expect(response.status).toBe(200);
             expect(response.body.data.referralCode).toBeDefined();
         });
-        
+
         test('GET /api/referrals/my-code - should return referral code', async () => {
             const response = await request(app)
                 .get('/api/referrals/my-code')
                 .set('Authorization', `Bearer ${userToken}`);
-                
+
             expect(response.status).toBe(200);
             testReferralCode = response.body.data.referralCode;
         });
-        
+
         test('GET /api/referrals/commissions - should return commission history', async () => {
             const response = await request(app)
                 .get('/api/referrals/commissions?page=1&limit=10')
                 .set('Authorization', `Bearer ${userToken}`);
-                
+
             expect(response.status).toBe(200);
             expect(response.body.data.docs).toBeInstanceOf(Array);
         });
     });
-    
+
     describe('Admin Endpoints', () => {
         test('GET /api/referrals/admin/stats - should return admin stats', async () => {
             const response = await request(app)
                 .get('/api/referrals/admin/stats')
                 .set('Authorization', `Bearer ${adminToken}`);
-                
+
             expect(response.status).toBe(200);
             expect(response.body.data.overview).toBeDefined();
         });
@@ -990,7 +990,7 @@ import User from './src/modules/user/user.model.js';
 const testCommissionProcessing = async () => {
     try {
         console.log('Testing commission processing...');
-        
+
         // Create test transaction
         const testTransaction = new Transaction({
             user: 'userId1',
@@ -1000,14 +1000,14 @@ const testCommissionProcessing = async () => {
             currency: 'USD',
             status: 'completed'
         });
-        
+
         await testTransaction.save();
-        
+
         // Process commissions
         const result = await ReferralService.processCommissions(testTransaction);
-        
+
         console.log('Commission processing result:', result);
-        
+
         if (result.processed) {
             console.log('✅ Commission processing successful');
             console.log(`Tier 1 Commission: $${result.tier1Amount}`);
@@ -1015,7 +1015,7 @@ const testCommissionProcessing = async () => {
         } else {
             console.log('❌ Commission processing failed:', result.reason);
         }
-        
+
     } catch (error) {
         console.error('Test failed:', error);
     } finally {
@@ -1044,7 +1044,7 @@ describe('ReferralDashboardComponent', () => {
     let component: ReferralDashboardComponent;
     let fixture: ComponentFixture<ReferralDashboardComponent>;
     let referralService: jasmine.SpyObj<ReferralService>;
-    
+
     beforeEach(async () => {
         const referralServiceSpy = jasmine.createSpyObj('ReferralService', [
             'getReferralStats',
@@ -1052,7 +1052,7 @@ describe('ReferralDashboardComponent', () => {
             'getCommissionHistory',
             'getLeaderboard'
         ]);
-        
+
         await TestBed.configureTestingModule({
             declarations: [ReferralDashboardComponent],
             imports: [HttpClientTestingModule],
@@ -1060,18 +1060,18 @@ describe('ReferralDashboardComponent', () => {
                 { provide: ReferralService, useValue: referralServiceSpy }
             ]
         }).compileComponents();
-        
+
         fixture = TestBed.createComponent(ReferralDashboardComponent);
         component = fixture.componentInstance;
         referralService = TestBed.inject(ReferralService) as jasmine.SpyObj<ReferralService>;
     });
-    
+
     it('should load dashboard data on init', () => {
         const mockStats = { totalReferrals: 10, totalCommissions: 100 };
         referralService.getReferralStats.and.returnValue(of({ success: true, data: mockStats }));
-        
+
         component.ngOnInit();
-        
+
         expect(referralService.getReferralStats).toHaveBeenCalled();
         expect(component.stats).toEqual(mockStats);
     });
@@ -1097,16 +1097,16 @@ export let options = {
 
 export default function() {
     // Test referral validation
-    let response = http.post('http://localhost:5000/api/referrals/validate', 
+    let response = http.post('http://localhost:5000/api/referrals/validate',
         JSON.stringify({ referralCode: 'TEST1234' }),
         { headers: { 'Content-Type': 'application/json' } }
     );
-    
+
     check(response, {
         'validation request successful': (r) => r.status === 200,
         'response time < 500ms': (r) => r.timings.duration < 500,
     });
-    
+
     sleep(1);
 }
 ```
@@ -1129,17 +1129,17 @@ const performanceMetrics = {
     referralValidationTime: 'avg < 100ms',
     commissionProcessingTime: 'avg < 200ms',
     dashboardLoadTime: 'avg < 500ms',
-    
+
     // Database Performance
     referralCodeLookup: 'avg < 50ms',
     commissionInsert: 'avg < 100ms',
     analyticsQuery: 'avg < 1000ms',
-    
+
     // System Health
     commissionProcessingSuccess: 'rate > 99%',
     payoutProcessingErrors: 'rate < 1%',
     databaseConnections: 'active < 80% of pool',
-    
+
     // Business Metrics
     referralConversionRate: 'track daily',
     averageCommissionAmount: 'track weekly',
@@ -1176,18 +1176,18 @@ import { performance } from 'perf_hooks';
 
 static async getReferralDashboard(req, res) {
     const startTime = performance.now();
-    
+
     try {
         // ... existing logic
-        
+
         const endTime = performance.now();
         console.log(`Dashboard load took ${endTime - startTime}ms`);
-        
+
         // Log to monitoring service
         // monitoring.timing('referral.dashboard.load', endTime - startTime);
-        
+
         res.json({ success: true, data: analytics });
-        
+
     } catch (error) {
         // monitoring.increment('referral.dashboard.error');
         console.error('Dashboard error:', error);
@@ -1213,32 +1213,32 @@ const checkCommissionHealth = async () => {
         avgProcessingTime: null,
         issues: []
     };
-    
+
     // Check processing rate in last hour
     const lastHour = new Date(Date.now() - 60 * 60 * 1000);
     const recentCommissions = await Commission.find({
         createdAt: { $gte: lastHour },
         status: { $in: ['paid', 'failed'] }
     });
-    
+
     healthReport.recentProcessingRate = recentCommissions.length;
-    
+
     // Check for high failure rate
     const failedInLastHour = recentCommissions.filter(c => c.status === 'failed').length;
     if (failedInLastHour / recentCommissions.length > 0.05) {
         healthReport.issues.push('High commission failure rate detected');
     }
-    
+
     // Check for stale pending commissions
     const stalePending = await Commission.countDocuments({
         status: 'pending',
         createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     });
-    
+
     if (stalePending > 0) {
         healthReport.issues.push(`${stalePending} commissions pending for over 24 hours`);
     }
-    
+
     console.log('Commission Health Report:', healthReport);
     return healthReport;
 };
@@ -1258,7 +1258,7 @@ static async getSystemHealth(req, res) {
         if (req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Access denied' });
         }
-        
+
         const [
             totalReferrals,
             pendingCommissions,
@@ -1269,12 +1269,12 @@ static async getSystemHealth(req, res) {
             Referral.countDocuments({ isActive: true }),
             Commission.countDocuments({ status: 'pending' }),
             Commission.countDocuments({ status: 'failed' }),
-            Commission.find({ 
+            Commission.find({
                 createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) }
             }).countDocuments(),
             mongoose.connection.db.admin().ping()
         ]);
-        
+
         const health = {
             system: 'referral',
             status: 'healthy',
@@ -1288,20 +1288,20 @@ static async getSystemHealth(req, res) {
             },
             alerts: []
         };
-        
+
         // Add alerts based on thresholds
         if (pendingCommissions > 1000) {
             health.alerts.push('High number of pending commissions');
             health.status = 'warning';
         }
-        
+
         if (failedCommissions > 100) {
             health.alerts.push('High number of failed commissions');
             health.status = 'warning';
         }
-        
+
         res.json({ success: true, data: health });
-        
+
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -1340,7 +1340,7 @@ const alertConfig = {
 
 const sendAlert = async (type, message, details = {}) => {
     const transporter = nodemailer.createTransporter(alertConfig.email.smtp);
-    
+
     const mailOptions = {
         from: alertConfig.email.from,
         to: alertConfig.email.to,
@@ -1353,7 +1353,7 @@ const sendAlert = async (type, message, details = {}) => {
             <pre>${JSON.stringify(details, null, 2)}</pre>
         `
     };
-    
+
     try {
         await transporter.sendMail(mailOptions);
         console.log(`Alert sent: ${type}`);
@@ -1380,7 +1380,7 @@ const monitorCommissionFailures = async () => {
             }
         }
     ]);
-    
+
     if (failureRate[0]?.total > 0) {
         const rate = failureRate[0].failed / failureRate[0].total;
         if (rate > 0.1) { // 10% failure rate threshold
@@ -1451,7 +1451,7 @@ const fixDuplicateCodes = async () => {
         { $group: { _id: "$code", docs: { $push: "$$ROOT" }, count: { $sum: 1 } } },
         { $match: { count: { $gt: 1 } } }
     ]);
-    
+
     for (const duplicate of duplicates) {
         const docs = duplicate.docs;
         // Keep the first one, reassign codes to others
@@ -1519,7 +1519,7 @@ console.log(`Query took ${Date.now() - start}ms`);
 **Diagnosis:**
 ```javascript
 // Check failed payouts
-const failedPayouts = await Commission.find({ 
+const failedPayouts = await Commission.find({
     status: 'failed',
     createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
 }).populate('recipient', 'walletAddress');
@@ -1541,14 +1541,14 @@ console.log('Failed payouts:', failedPayouts);
 // cleanup-referrals.js
 const performMaintenance = async () => {
     console.log('Starting referral system maintenance...');
-    
+
     // Clean up old failed commissions (older than 30 days)
     const oldFailedCommissions = await Commission.deleteMany({
         status: 'failed',
         createdAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     });
     console.log(`Cleaned up ${oldFailedCommissions.deletedCount} old failed commissions`);
-    
+
     // Update referral statistics
     const referrals = await Referral.find({});
     for (const referral of referrals) {
@@ -1556,12 +1556,12 @@ const performMaintenance = async () => {
             { $match: { recipient: referral.codeOwner, status: 'paid' } },
             { $group: { _id: null, total: { $sum: '$commissionAmount' } } }
         ]);
-        
+
         referral.stats.totalCommissionEarned = commissionTotal[0]?.total || 0;
         await referral.save();
     }
     console.log(`Updated statistics for ${referrals.length} referral records`);
-    
+
     console.log('Maintenance completed');
 };
 
@@ -1576,9 +1576,9 @@ schedule.cron('0 2 1 * *', performMaintenance); // First day of month at 2 AM
 // integrity-check.js
 const checkDataIntegrity = async () => {
     console.log('Checking referral data integrity...');
-    
+
     const issues = [];
-    
+
     // Check for users without referral records
     const usersWithoutReferrals = await User.find({
         'referralData.referralCode': { $exists: false }
@@ -1586,7 +1586,7 @@ const checkDataIntegrity = async () => {
     if (usersWithoutReferrals.length > 0) {
         issues.push(`${usersWithoutReferrals.length} users without referral records`);
     }
-    
+
     // Check for orphaned referral records
     const orphanedReferrals = await Referral.aggregate([
         {
@@ -1602,7 +1602,7 @@ const checkDataIntegrity = async () => {
     if (orphanedReferrals.length > 0) {
         issues.push(`${orphanedReferrals.length} orphaned referral records`);
     }
-    
+
     // Check for commissions without source transactions
     const orphanedCommissions = await Commission.aggregate([
         {
@@ -1618,14 +1618,14 @@ const checkDataIntegrity = async () => {
     if (orphanedCommissions.length > 0) {
         issues.push(`${orphanedCommissions.length} orphaned commission records`);
     }
-    
+
     if (issues.length === 0) {
         console.log('✅ Data integrity check passed');
     } else {
         console.log('❌ Data integrity issues found:');
         issues.forEach(issue => console.log(`  - ${issue}`));
     }
-    
+
     return issues;
 };
 ```

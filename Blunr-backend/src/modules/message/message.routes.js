@@ -19,11 +19,11 @@ router.get("/getUserChatRooms", authMiddleware, getUserChatRooms);
 router.post("/getRoomById", authMiddleware, getChatRoomById);
 
 // Messages Routes
-router.post("/messages", upload.array("media", 10), sendMessage);
+router.post("/messages", authMiddleware, upload.array("media", 10), sendMessage);
 router.get("/messages/:roomId", authMiddleware, getMessages);
-router.put("/messages/read/:messageId", markAsRead);
+router.put("/messages/read/:messageId", authMiddleware, markAsRead);
 router.put("/messages/read-room/:roomId", authMiddleware, markRoomAsRead);
 
-router.post("/messages", authMiddleware, broadcastMessage);
+router.post("/broadcast", authMiddleware, broadcastMessage);
 
 export default router;

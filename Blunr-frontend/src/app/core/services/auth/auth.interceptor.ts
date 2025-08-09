@@ -4,24 +4,27 @@ import envs from '../../../../envs';
 export const AuthInterceptor: HttpInterceptorFn = (req, next) => {
   const token = getStoredToken();
 
-  const baseReq = req.clone({
+  // Don't set Content-Type for FormData, let the browser set it with boundary
+  const isFormData = req.body instanceof FormData;
+  
+  const headers: any = {
+    'Accept': 'application/json',
+  };
+  
+  // Only set Content-Type if it's not FormData
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const clonedReq = req.clone({
     url: `${envs.API_BASE_URL}${req.url}`,
-    setHeaders: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
+    setHeaders: headers,
     withCredentials: true,
   });
-
-  const clonedReq = token
-    ? baseReq.clone({
-        setHeaders: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      })
-    : baseReq;
 
   return next(clonedReq);
 };

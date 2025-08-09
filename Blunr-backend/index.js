@@ -35,6 +35,12 @@ app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf; // needed for signature verification in webhooks
   },
+  type: (req) => {
+    // Only parse as JSON if content-type is application/json
+    // This prevents errors when multipart/form-data is sent
+    const contentType = req.get('content-type');
+    return contentType && contentType.includes('application/json');
+  }
 }));
 app.use(express.urlencoded({
   limit: '500mb',

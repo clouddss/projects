@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { HomePageAreaComponent } from '../shared/components/home-page-area/home-page-area.component';
 import { HomeSidebarComponent } from '../shared/components/home-sidebar/home-sidebar.component';
 import { ChatbotComponent } from '../shared/components/chatbot/chatbot.component';
@@ -22,7 +22,7 @@ import { ChatSelectionService } from '../shared/components/chatbot/chat-selectio
   templateUrl: './message.component.html',
   styleUrl: './message.component.scss',
 })
-export class MessageComponent {
+export class MessageComponent implements OnInit {
   isChatisOpened: boolean = false;
   userChatRooms: any[] = [];
   role = 'creator';
@@ -102,16 +102,53 @@ export class MessageComponent {
   loadUserChatRooms() {
     this.chatService.getUserChatRooms().subscribe({
       next: (data) => {
+        console.log('Chat rooms data:', data);
         this.userChatRooms = (data as any[]).sort((a, b) => {
           // Sort by most recent message timestamp (fallback frontend sorting)
           const timestampA = new Date(a.lastMessage?.timestamp || 0).getTime();
           const timestampB = new Date(b.lastMessage?.timestamp || 0).getTime();
           return timestampB - timestampA;
         });
+        // Log the first room to debug the structure
+        if (this.userChatRooms.length > 0) {
+          console.log('First room structure:', this.userChatRooms[0]);
+          console.log('Members:', this.userChatRooms[0].members);
+        }
       },
       error: (err) => {
         console.error('Error fetching posts:', err);
       },
     });
+  }
+
+  getAvatarForRoom(room: any): string {
+    const defaultAvatar = '../../../../assets/images/avatar.jpeg';
+    if (!room || !room.members || !Array.isArray(room.members)) {
+      return defaultAvatar;
+    }
+    
+    const memberIndex = this.role === 'user' ? 0 : 1;
+    const member = room.members[memberIndex];
+    return member?.avatar || defaultAvatar;
+  }
+
+  getUsernameForRoom(room: any): string {
+    if (!room || !room.members || !Array.isArray(room.members)) {
+      return '';
+    }
+    
+    const memberIndex = this.role === 'user' ? 0 : 1;
+    const member = room.members[memberIndex];
+    return member?.username || '';
+  }
+
+  getNameForRoom(room: any): string {
+    if (!room || !room.members || !Array.isArray(room.members)) {
+      return '';
+    }
+    
+    const memberIndex = this.role === 'user' ? 0 : 1;
+    const member = room.members[memberIndex];
+    return member?.name || '';
   }
 }

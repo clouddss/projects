@@ -25,9 +25,11 @@ const allowedMimeTypes = [
 // Configure storage for multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    console.log('Multer destination called - file:', file.originalname);
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
+    console.log('Multer filename called - file:', file.originalname);
     const randomSuffix = crypto.randomBytes(6).toString("hex");
     const safeFilename = file.originalname.replace(/\s+/g, "_").toLowerCase();
     cb(null, `${Date.now()}-${randomSuffix}-${safeFilename}`);

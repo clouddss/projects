@@ -66,6 +66,8 @@ export const sendMessage = async (req, res) => {
     const { chatRoom, sender, receiver, text, isLocked, price } = req.body;
     
     // Debug logging
+    console.log('SendMessage - Headers:', req.headers);
+    console.log('SendMessage - Content-Type:', req.headers['content-type']);
     console.log('SendMessage - req.body:', req.body);
     console.log('SendMessage - req.files:', req.files);
     console.log('SendMessage - text:', text);

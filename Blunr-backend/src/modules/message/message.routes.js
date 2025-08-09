@@ -21,8 +21,18 @@ router.post("/createChatRoom", jsonMiddleware, authMiddleware, createChatRoom);
 router.get("/getUserChatRooms", authMiddleware, getUserChatRooms);
 router.post("/getRoomById", jsonMiddleware, authMiddleware, getChatRoomById);
 
-// Messages Routes
-router.post("/messages", authMiddleware, upload.array("media", 10), sendMessage);
+// Messages Routes - Add debugging middleware
+router.post("/messages", 
+  (req, res, next) => {
+    console.log('Message route hit - Content-Type:', req.headers['content-type']);
+    console.log('Message route hit - Body type:', typeof req.body);
+    console.log('Message route hit - Body:', req.body);
+    next();
+  },
+  authMiddleware, 
+  upload.array("media", 10), 
+  sendMessage
+);
 router.get("/messages/:roomId", authMiddleware, getMessages);
 router.put("/messages/read/:messageId", jsonMiddleware, authMiddleware, markAsRead);
 router.put("/messages/read-room/:roomId", jsonMiddleware, authMiddleware, markRoomAsRead);

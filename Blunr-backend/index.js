@@ -30,18 +30,19 @@ connectDB();
 const app = express();
 
 // ✅ Middleware: JSON and urlencoded
-app.use(express.json({
-  limit: '500mb',
-  verify: (req, res, buf) => {
-    req.rawBody = buf; // needed for signature verification in webhooks
-  },
-  type: (req) => {
-    // Only parse as JSON if content-type is application/json
-    // This prevents errors when multipart/form-data is sent
-    const contentType = req.get('content-type');
-    return contentType && contentType.includes('application/json');
+app.use((req, res, next) => {
+  const contentType = req.get('content-type') || '';
+  // Skip JSON parsing for multipart/form-data
+  if (contentType.includes('multipart/form-data')) {
+    return next();
   }
-}));
+  express.json({
+    limit: '500mb',
+    verify: (req, res, buf) => {
+      req.rawBody = buf; // needed for signature verification in webhooks
+    },
+  })(req, res, next);
+});
 app.use(express.urlencoded({
   limit: '500mb',
   extended: true,

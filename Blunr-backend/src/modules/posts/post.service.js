@@ -17,8 +17,8 @@ export const getPostById = async (id) => await Post.findById(id);
 
 
 
-export const getAllPosts = async () => {
-  return await Post.find()
+export const getAllPosts = async (filter = {}) => {
+  return await Post.find(filter)
       .populate('creator', 'username name avatar isVerified') 
       .sort({ createdAt: -1 }); 
 };

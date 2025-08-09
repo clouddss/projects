@@ -153,10 +153,23 @@ export const getAllPosts = async (req, res) => {
     const bannedCreatorIds = new Set(bannedCreators.map((user) => user._id.toString()));
 
     const modifiedPosts = posts
-      .filter((post) => !bannedCreatorIds.has(post.creator._id.toString())) // Exclude banned creators
+      .filter((post) => {
+        // Check if creator exists (not deleted from database)
+        if (!post.creator || !post.creator._id) {
+          console.warn("Post with missing creator found:", post._id);
+          return false;
+        }
+        return !bannedCreatorIds.has(post.creator._id.toString());
+      })
       .map((post) => {
-        const isPostOwner = userId === post.creator._id.toString();
-        const isSubscribed = isPostOwner || subscribedCreators.has(post.creator._id.toString());
+        // Double-check creator exists before accessing properties
+        if (!post.creator || !post.creator._id) {
+          return null;
+        }
+        
+        const creatorId = post.creator._id.toString();
+        const isPostOwner = userId === creatorId;
+        const isSubscribed = isPostOwner || subscribedCreators.has(creatorId);
 
         return {
           ...post.toObject(),
@@ -165,7 +178,8 @@ export const getAllPosts = async (req, res) => {
           isLocked: isPostOwner ? false : post.isLocked,
           media: isSubscribed ? post.media : [], // Show media only if subscribed or owner
         };
-      });
+      })
+      .filter(post => post !== null); // Remove any null entries
 
     res.json(modifiedPosts);
   } catch (error) {

@@ -1,12 +1,20 @@
 
 
-.nams-username.d-flex {
-    width: 100%;
-    flex-direction: row;
+// Override global .nams-username styles for the message list
+.chat-tile .nams-username.d-flex {
+    width: 100% !important;
+    flex-direction: row !important;
     gap: 8px;
-    color: #000;
-    align-items: center;
+    color: #000 !important;
+    align-items: center !important;
     line-height: 1;
+    padding-bottom: 0 !important; // Override global padding
+    
+    span {
+        color: #000 !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+    }
 }
 
 .home-container.flex-row{
@@ -118,21 +126,29 @@
 .change-name-btn {
     opacity: 0;
     transition: opacity 0.2s ease;
-    padding: 2px 6px;
+    padding: 2px 6px !important;
     font-size: 11px;
     line-height: 1;
-    border: none;
-    background: transparent;
+    border: none !important;
+    background: transparent !important;
     color: #6c757d;
+    width: auto !important; // Override global button width: 100%
+    text-transform: none !important; // Override global text-transform: uppercase
+    border-radius: 3px !important; // Override global border-radius: 60px
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
     
     &:hover {
-        background-color: rgba(108, 117, 125, 0.1);
+        background-color: rgba(108, 117, 125, 0.1) !important;
         color: #495057;
     }
     
     &:focus {
         opacity: 1;
-        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25) !important;
     }
 }
 
@@ -141,13 +157,29 @@
 }
 
 // Ensure name section has proper layout
-.nams-username.d-flex {
-    align-items: center;
+.chat-tile .nams-username.d-flex {
+    align-items: center !important;
     min-height: 20px; // Ensure consistent height even with/without button
+    justify-content: flex-start !important;
     
     .display-name-container {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        flex: 1;
+        color: #000 !important;
+        font-weight: 500;
+    }
+}
+
+// Fix chat tile layout to ensure proper spacing
+.chat-tile {
+    .chat-link {
+        .d-flex.flex-column {
+            .nams-username.d-flex {
+                padding-bottom: 5px !important; // Keep some padding for spacing
+                margin-bottom: 0;
+            }
+        }
     }
 }

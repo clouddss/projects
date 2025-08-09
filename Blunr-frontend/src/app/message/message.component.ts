@@ -129,9 +129,18 @@ export class MessageComponent implements OnInit {
       return defaultAvatar;
     }
     
-    const memberIndex = this.role === 'user' ? 0 : 1;
-    const member = room.members[memberIndex];
-    return member?.avatar || defaultAvatar;
+    // Find the other member (not the current user)
+    const currentUser = this.authService.getUserData();
+    const otherMember = room.members.find((member: any) => member._id !== currentUser?._id);
+    
+    if (!otherMember) {
+      // Fallback to original logic
+      const memberIndex = this.role === 'user' ? 0 : 1;
+      const member = room.members[memberIndex];
+      return member?.avatar || defaultAvatar;
+    }
+    
+    return otherMember?.avatar || defaultAvatar;
   }
 
   getUsernameForRoom(room: any): string {
@@ -139,9 +148,18 @@ export class MessageComponent implements OnInit {
       return '';
     }
     
-    const memberIndex = this.role === 'user' ? 0 : 1;
-    const member = room.members[memberIndex];
-    return member?.username || '';
+    // Find the other member (not the current user)
+    const currentUser = this.authService.getUserData();
+    const otherMember = room.members.find((member: any) => member._id !== currentUser?._id);
+    
+    if (!otherMember) {
+      // Fallback to original logic
+      const memberIndex = this.role === 'user' ? 0 : 1;
+      const member = room.members[memberIndex];
+      return member?.username || '';
+    }
+    
+    return otherMember?.username || '';
   }
 
   getNameForRoom(room: any): string {
@@ -159,20 +177,37 @@ export class MessageComponent implements OnInit {
    */
   getDisplayNameForRoom(room: any): string {
     if (!room || !room.members || !Array.isArray(room.members)) {
-      return '';
+      console.log('getDisplayNameForRoom: No room or members');
+      return 'Unknown User';
     }
     
-    const memberIndex = this.role === 'user' ? 0 : 1;
-    const member = room.members[memberIndex];
+    // Find the other member (not the current user)
+    const currentUser = this.authService.getUserData();
+    const otherMember = room.members.find((member: any) => member._id !== currentUser?._id);
     
-    if (!member) {
-      return '';
+    if (!otherMember) {
+      console.log('getDisplayNameForRoom: Using fallback logic, current user:', currentUser?._id, 'members:', room.members.map((m: any) => ({ id: m._id, username: m.username })));
+      // Fallback to original logic if we can't find by ID comparison
+      const memberIndex = this.role === 'user' ? 0 : 1;
+      const member = room.members[memberIndex];
+      
+      if (!member) {
+        return 'Unknown User';
+      }
+      
+      return this.customNamesService.getFormattedDisplayName(
+        member._id,
+        member.username || member.name || 'Unknown User'
+      );
     }
     
-    return this.customNamesService.getFormattedDisplayName(
-      member._id,
-      member.username || member.name || ''
+    const displayName = this.customNamesService.getFormattedDisplayName(
+      otherMember._id,
+      otherMember.username || otherMember.name || 'Unknown User'
     );
+    
+    console.log('getDisplayNameForRoom: Found other member:', otherMember.username, 'display name:', displayName);
+    return displayName;
   }
 
   /**
@@ -198,15 +233,23 @@ export class MessageComponent implements OnInit {
       return;
     }
     
-    const memberIndex = this.role === 'user' ? 0 : 1;
-    const member = room.members[memberIndex];
+    // Find the other member (not the current user)
+    const currentUser = this.authService.getUserData();
+    const otherMember = room.members.find((member: any) => member._id !== currentUser?._id);
     
-    if (!member) {
+    let targetMember = otherMember;
+    if (!otherMember) {
+      // Fallback to original logic
+      const memberIndex = this.role === 'user' ? 0 : 1;
+      targetMember = room.members[memberIndex];
+    }
+    
+    if (!targetMember) {
       return;
     }
     
-    const originalUsername = member.username || member.name || '';
-    const currentCustomName = this.customNamesService.getCustomName(member._id);
+    const originalUsername = targetMember.username || targetMember.name || '';
+    const currentCustomName = this.customNamesService.getCustomName(targetMember._id);
     const currentDisplayName = currentCustomName ? currentCustomName.customName : originalUsername;
     
     const newName = prompt(
@@ -217,9 +260,9 @@ export class MessageComponent implements OnInit {
     if (newName !== null) { // null means user cancelled
       if (newName.trim() === '') {
         // Remove custom name if empty
-        this.customNamesService.removeCustomName(member._id);
+        this.customNamesService.removeCustomName(targetMember._id);
       } else {
-        this.customNamesService.setCustomName(member._id, newName.trim(), originalUsername);
+        this.customNamesService.setCustomName(targetMember._id, newName.trim(), originalUsername);
       }
     }
   }

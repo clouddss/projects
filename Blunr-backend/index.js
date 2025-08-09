@@ -29,24 +29,19 @@ connectDB();
 
 const app = express();
 
-// ✅ Middleware: JSON and urlencoded
-app.use((req, res, next) => {
-  const contentType = req.get('content-type') || '';
-  // Skip JSON parsing for multipart/form-data
-  if (contentType.includes('multipart/form-data')) {
-    return next();
-  }
-  express.json({
-    limit: '500mb',
-    verify: (req, res, buf) => {
-      req.rawBody = buf; // needed for signature verification in webhooks
-    },
-  })(req, res, next);
-});
+// ✅ Middleware: Only urlencoded globally (JSON will be applied per route)
 app.use(express.urlencoded({
   limit: '500mb',
   extended: true,
 }));
+
+// Create JSON middleware for routes that need it
+const jsonMiddleware = express.json({
+  limit: '500mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf; // needed for signature verification in webhooks
+  },
+});
 
 // ✅ CORS configuration - Allow all origins with proper headers
 app.use(cors({
@@ -81,19 +76,19 @@ app.post('/api/transaction/webhook', bodyParser.raw({ type: '*/*' }), coinbaseWe
 app.post('/api/transaction/nowPayments/webhook', bodyParser.raw({ type: '*/*' }), nowPaymentsWebhook);
 app.post('/api/transaction/cryptomus/webhook', bodyParser.raw({ type: '*/*' }), cryptomusWebhook);
 
-// ✅ API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/post', postRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/withdrawals', withdrawalRoutes);
-app.use('/api/subscribe', subscriptionRoutes);
-app.use('/api/transaction', transactionRoutes);
-app.use('/api/tip', tipRoutes);
-app.use('/api/report', reportRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/comment', commentRoutes);
-app.use('/api/referral', referralRoutes);
+// ✅ API Routes (routes with file uploads skip JSON middleware)
+app.use('/api/auth', jsonMiddleware, authRoutes);
+app.use('/api/user', jsonMiddleware, userRoutes);
+app.use('/api/post', postRoutes); // Post routes have multer for file uploads
+app.use('/api/chat', chatRoutes); // Chat routes have multer for media uploads
+app.use('/api/withdrawals', jsonMiddleware, withdrawalRoutes);
+app.use('/api/subscribe', jsonMiddleware, subscriptionRoutes);
+app.use('/api/transaction', jsonMiddleware, transactionRoutes);
+app.use('/api/tip', jsonMiddleware, tipRoutes);
+app.use('/api/report', jsonMiddleware, reportRoutes);
+app.use('/api/wallet', jsonMiddleware, walletRoutes);
+app.use('/api/comment', jsonMiddleware, commentRoutes);
+app.use('/api/referral', jsonMiddleware, referralRoutes);
 
 // ✅ Start server
 const PORT = process.env.PORT || 5000;

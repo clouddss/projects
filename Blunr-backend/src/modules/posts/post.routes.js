@@ -14,13 +14,16 @@ import authMiddleware from "../../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
+// JSON middleware for routes that need it
+const jsonMiddleware = express.json({ limit: '500mb' });
+
 router.post("/create", authMiddleware, upload.array("media", 10), createPost);
-router.post("/getAllPosts", authMiddleware, getAllPosts);
-router.post("/like/:postId", authMiddleware, likePost);
+router.post("/getAllPosts", jsonMiddleware, authMiddleware, getAllPosts);
+router.post("/like/:postId", jsonMiddleware, authMiddleware, likePost);
 router.delete("/delete/:id", authMiddleware, deletePost);
 router.get("/my-posts", authMiddleware, getMyPosts);
 router.get("/my-media", authMiddleware, getMyMedia);
-router.put('/ban/:postId',banPost);
-router.put('/unban/:postId',unbanPost);
+router.put('/ban/:postId', jsonMiddleware, banPost);
+router.put('/unban/:postId', jsonMiddleware, unbanPost);
 
 export default router;

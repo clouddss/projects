@@ -17,9 +17,23 @@
     <div class="profile-opt pointer-class" (click)="redirectToProfile(currentRecieverUsername)">
       <img class="h-auto w-100 profile-opt" alt="" src="{{ currentRecieverAvatar }}" />
     </div>
-    <span class="pointer-class" (click)="redirectToProfile(currentRecieverUsername)">
-      {{ currentReceiver }} <span class="chat-status"> {{ '@' + currentRecieverUsername }} </span>
-    </span>
+    <div class="d-flex align-items-center flex-grow-1">
+      <span class="pointer-class chat-header-name" 
+            (click)="redirectToProfile(currentRecieverUsername)"
+            (contextmenu)="changeReceiverDisplayName($event); $event.preventDefault()"
+            title="Right-click to change display name">
+        {{ getReceiverDisplayName() }}
+      </span>
+      <button type="button"
+              class="btn btn-sm btn-outline-secondary ms-2 change-name-btn-header"
+              (click)="changeReceiverDisplayName($event)"
+              title="Change display name"
+              [attr.aria-label]="'Change display name for ' + currentRecieverUsername">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div class="msger-chat" #scrollable>
@@ -39,7 +53,20 @@
 
           <div class="msg-bubble">
             <div class="msg-info">
-              <div class="msg-info-name">{{ item.sender.username }}</div>
+              <div class="msg-info-name"
+                   (contextmenu)="changeMessageSenderDisplayName(item.sender._id, item.sender.username, $event); $event.preventDefault()"
+                   title="Right-click to change display name">
+                {{ getDisplayNameForUser(item.sender._id, item.sender.username) }}
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary ms-1 change-name-btn-msg"
+                        (click)="changeMessageSenderDisplayName(item.sender._id, item.sender.username, $event)"
+                        title="Change display name"
+                        [attr.aria-label]="'Change display name for ' + item.sender.username">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                  </svg>
+                </button>
+              </div>
               <div class="msg-info-time">{{ formatDate(item.createdAt) }}</div>
             </div>
 
@@ -91,7 +118,20 @@
 
           <div class="msg-bubble">
             <div class="msg-info">
-              <div class="msg-info-name">{{ item.sender.username }} </div>
+              <div class="msg-info-name"
+                   (contextmenu)="changeMessageSenderDisplayName(item.sender._id, item.sender.username, $event); $event.preventDefault()"
+                   title="Right-click to change display name">
+                {{ getDisplayNameForUser(item.sender._id, item.sender.username) }}
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary ms-1 change-name-btn-msg"
+                        (click)="changeMessageSenderDisplayName(item.sender._id, item.sender.username, $event)"
+                        title="Change display name"
+                        [attr.aria-label]="'Change display name for ' + item.sender.username">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                  </svg>
+                </button>
+              </div>
               <div class="msg-info-time">{{ formatDate(item.createdAt) }}</div>
             </div>
 

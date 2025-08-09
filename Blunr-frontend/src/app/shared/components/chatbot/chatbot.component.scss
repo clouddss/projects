@@ -268,3 +268,94 @@ form.msger-inputarea button.btn.btn-primary {
 .pointer-class {
   cursor: pointer;
 }
+
+// Custom display name styles for chatbot
+.chat-header-name {
+  cursor: context-menu;
+  user-select: none;
+  flex: 1;
+  min-width: 0;
+  
+  &:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-radius: 3px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+  }
+}
+
+.change-name-btn-header {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  
+  &:hover {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #495057;
+  }
+  
+  &:focus {
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  }
+}
+
+.chat-header:hover .change-name-btn-header {
+  opacity: 1;
+}
+
+.msg-info-name {
+  display: inline-flex;
+  align-items: center;
+  cursor: context-menu;
+  user-select: none;
+  
+  &:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-radius: 3px;
+    padding: 1px 3px;
+    margin: -1px -3px;
+  }
+}
+
+.change-name-btn-msg {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  padding: 1px 3px;
+  font-size: 9px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  margin-left: 4px;
+  
+  &:hover {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #495057;
+  }
+  
+  &:focus {
+    opacity: 1;
+    box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.25);
+  }
+}
+
+.msg-info:hover .change-name-btn-msg {
+  opacity: 1;
+}
+
+// Make sure header layout works with new elements
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  
+  .d-flex.align-items-center.flex-grow-1 {
+    min-width: 0; // Allow text to truncate
+  }
+}

@@ -9,6 +9,7 @@ import { EmptyDataComponent } from '../shared/components/empty-data/empty-data.c
 import { ActivatedRoute, Router } from '@angular/router';
 import { ROUTES } from '../core/constants/routes.constant';
 import { ChatSelectionService } from '../shared/components/chatbot/chat-selection.service';
+import { CustomNamesService } from '../core/services/custom-names/custom-names.service';
 
 @Component({
   selector: 'app-message',
@@ -33,7 +34,8 @@ export class MessageComponent implements OnInit {
     private readonly chatService: ChatService,
     private readonly authService: AuthService,
     private readonly chatSelectionService: ChatSelectionService,
-    private readonly route: ActivatedRoute
+    private readonly route: ActivatedRoute,
+    private readonly customNamesService: CustomNamesService
   ) {}
 
   openChatOfUser(chatId: string) {
@@ -150,5 +152,75 @@ export class MessageComponent implements OnInit {
     const memberIndex = this.role === 'user' ? 0 : 1;
     const member = room.members[memberIndex];
     return member?.name || '';
+  }
+
+  /**
+   * Get display name for room - includes custom name if set
+   */
+  getDisplayNameForRoom(room: any): string {
+    if (!room || !room.members || !Array.isArray(room.members)) {
+      return '';
+    }
+    
+    const memberIndex = this.role === 'user' ? 0 : 1;
+    const member = room.members[memberIndex];
+    
+    if (!member) {
+      return '';
+    }
+    
+    return this.customNamesService.getFormattedDisplayName(
+      member._id,
+      member.username || member.name || ''
+    );
+  }
+
+  /**
+   * Get user ID for room to use with custom names
+   */
+  getUserIdForRoom(room: any): string {
+    if (!room || !room.members || !Array.isArray(room.members)) {
+      return '';
+    }
+    
+    const memberIndex = this.role === 'user' ? 0 : 1;
+    const member = room.members[memberIndex];
+    return member?._id || '';
+  }
+
+  /**
+   * Show prompt to change display name for a user
+   */
+  changeDisplayName(room: any, event: Event): void {
+    event.stopPropagation(); // Prevent opening the chat
+    
+    if (!room || !room.members || !Array.isArray(room.members)) {
+      return;
+    }
+    
+    const memberIndex = this.role === 'user' ? 0 : 1;
+    const member = room.members[memberIndex];
+    
+    if (!member) {
+      return;
+    }
+    
+    const originalUsername = member.username || member.name || '';
+    const currentCustomName = this.customNamesService.getCustomName(member._id);
+    const currentDisplayName = currentCustomName ? currentCustomName.customName : originalUsername;
+    
+    const newName = prompt(
+      `Change display name for @${originalUsername}:`,
+      currentDisplayName
+    );
+    
+    if (newName !== null) { // null means user cancelled
+      if (newName.trim() === '') {
+        // Remove custom name if empty
+        this.customNamesService.removeCustomName(member._id);
+      } else {
+        this.customNamesService.setCustomName(member._id, newName.trim(), originalUsername);
+      }
+    }
   }
 }

@@ -25,6 +25,7 @@ import { BeforeSlideDetail } from 'lightgallery/lg-events';
 import { ROUTES } from '../../../core/constants/routes.constant';
 import { ToastrService } from 'ngx-toastr';
 import { interval, Subscription } from 'rxjs';
+import { CustomNamesService } from '../../../core/services/custom-names/custom-names.service';
 
 @Component({
   selector: 'app-chatbot',
@@ -111,7 +112,8 @@ export class ChatbotComponent implements OnInit, OnDestroy, AfterViewInit {
     private readonly authService: AuthService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly toast: ToastrService
+    private readonly toast: ToastrService,
+    private readonly customNamesService: CustomNamesService
   ) {}
 
   isUser!: boolean;
@@ -375,6 +377,79 @@ export class ChatbotComponent implements OnInit, OnDestroy, AfterViewInit {
   isVideo(url: string): boolean {
     if (!url) return false;
     return url.match(/\.(mp4|webm|ogg)$/i) !== null;
+  }
+
+  /**
+   * Get display name for a user in chat messages
+   */
+  getDisplayNameForUser(userId: string, username: string): string {
+    return this.customNamesService.getFormattedDisplayName(userId, username);
+  }
+
+  /**
+   * Get display name for current receiver (for header)
+   */
+  getReceiverDisplayName(): string {
+    return this.customNamesService.getFormattedDisplayName(
+      this.currentReceiverId,
+      this.currentRecieverUsername
+    );
+  }
+
+  /**
+   * Change display name for the current receiver
+   */
+  changeReceiverDisplayName(event: Event): void {
+    event.stopPropagation();
+    
+    const currentCustomName = this.customNamesService.getCustomName(this.currentReceiverId);
+    const currentDisplayName = currentCustomName ? currentCustomName.customName : this.currentRecieverUsername;
+    
+    const newName = prompt(
+      `Change display name for @${this.currentRecieverUsername}:`,
+      currentDisplayName
+    );
+    
+    if (newName !== null) { // null means user cancelled
+      if (newName.trim() === '') {
+        // Remove custom name if empty
+        this.customNamesService.removeCustomName(this.currentReceiverId);
+      } else {
+        this.customNamesService.setCustomName(
+          this.currentReceiverId, 
+          newName.trim(), 
+          this.currentRecieverUsername
+        );
+      }
+    }
+  }
+
+  /**
+   * Change display name for a message sender
+   */
+  changeMessageSenderDisplayName(senderId: string, senderUsername: string, event: Event): void {
+    event.stopPropagation();
+    
+    const currentCustomName = this.customNamesService.getCustomName(senderId);
+    const currentDisplayName = currentCustomName ? currentCustomName.customName : senderUsername;
+    
+    const newName = prompt(
+      `Change display name for @${senderUsername}:`,
+      currentDisplayName
+    );
+    
+    if (newName !== null) { // null means user cancelled
+      if (newName.trim() === '') {
+        // Remove custom name if empty
+        this.customNamesService.removeCustomName(senderId);
+      } else {
+        this.customNamesService.setCustomName(
+          senderId, 
+          newName.trim(), 
+          senderUsername
+        );
+      }
+    }
   }
 
   ngOnDestroy(): void {

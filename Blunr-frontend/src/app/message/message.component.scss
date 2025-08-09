@@ -99,3 +99,55 @@
         opacity: 1;
     }
 }
+
+// Custom display name styles
+.display-name-container {
+    cursor: context-menu;
+    user-select: none;
+    flex: 1;
+    min-width: 0; // Allow text to truncate
+    
+    &:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+        border-radius: 3px;
+        padding: 2px 4px;
+        margin: -2px -4px;
+    }
+}
+
+.change-name-btn {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 1;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    
+    &:hover {
+        background-color: rgba(108, 117, 125, 0.1);
+        color: #495057;
+    }
+    
+    &:focus {
+        opacity: 1;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+}
+
+.chat-tile:hover .change-name-btn {
+    opacity: 1;
+}
+
+// Ensure name section has proper layout
+.nams-username.d-flex {
+    align-items: center;
+    min-height: 20px; // Ensure consistent height even with/without button
+    
+    .display-name-container {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}

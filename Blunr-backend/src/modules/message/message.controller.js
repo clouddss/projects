@@ -63,8 +63,17 @@ export const getUserChatRooms = async (req, res) => {
 // ✅ Send a message
 export const sendMessage = async (req, res) => {
   try {
-    const { chatRoom, sender, receiver, text, isLocked,price } = req.body;
+    const { chatRoom, sender, receiver, text, isLocked, price } = req.body;
+    
+    // Debug logging
+    console.log('SendMessage - req.body:', req.body);
+    console.log('SendMessage - req.files:', req.files);
+    console.log('SendMessage - text:', text);
+    console.log('SendMessage - sender:', sender);
+    console.log('SendMessage - receiver:', receiver);
+    
     if (!sender || !receiver || (!text && (!req.files || req.files.length === 0))) {
+      console.log('Validation failed:', { sender: !!sender, receiver: !!receiver, text: !!text, files: req.files?.length });
       return res.status(400).json({ message: "Invalid message data! Text or media required." });
     }
 

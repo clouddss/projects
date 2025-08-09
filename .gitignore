@@ -1,1 +1,6 @@
 /payment-system/lib/screenshots
+payment-system/lib/make-transaction.js
+payment-system/lib/screenshots/after-processing.png
+payment-system/lib/screenshots/before-new-card.png
+payment-system/lib/screenshots/debug-before-amount.png
+payment-system/lib/screenshots/error.png
